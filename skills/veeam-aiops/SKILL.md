@@ -153,6 +153,10 @@ All operations are automatically audited via the bundled `@governed_tool` decora
 
 The harness is bundled in the package — no external dependency, no manual setup. See `references/setup-guide.md` for security details.
 
+## Contributing & feature requests
+
+This is a preview — coverage is intentionally focused. **Missing a device, action, or feature you need?** Open an issue or pull request at [github.com/AIops-tools/Veeam-AIops](https://github.com/AIops-tools/Veeam-AIops/issues) — feature requests, contributions, and comments are all welcome.
+
 ## License
 
 MIT — [github.com/AIops-tools/Veeam-AIops](https://github.com/AIops-tools/Veeam-AIops)
