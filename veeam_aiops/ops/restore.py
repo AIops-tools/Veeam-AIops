@@ -15,21 +15,26 @@ from typing import Any
 from veeam_aiops.governance import sanitize
 
 
-def list_restore_points(conn: Any) -> list[dict]:
-    """[READ] List available restore points (id, name, creation time, type)."""
-    data = conn.get("/api/v1/restorePoints")
+def _restore_point_summary(rp: dict) -> dict:
+    return {
+        "id": sanitize(str(rp.get("id", "")), 64),
+        "name": sanitize(str(rp.get("name", "")), 128),
+        "creationTime": sanitize(str(rp.get("creationTime", "")), 64),
+        "type": sanitize(str(rp.get("platformName", rp.get("type", ""))), 64),
+    }
+
+
+def list_restore_points(conn: Any, backup_id: str | None = None) -> list[dict]:
+    """[READ] List restore points (id, name, creation time, type).
+
+    When ``backup_id`` is given, filter to restore points of that backup via the
+    documented ``backupIdFilter`` query parameter (preview — server-side filter
+    support varies by Veeam version; falls back to all points if unsupported).
+    """
+    params = {"backupIdFilter": backup_id} if backup_id else None
+    data = conn.get("/api/v1/restorePoints", params=params)
     items = data.get("data", data) if isinstance(data, dict) else data
-    out: list[dict] = []
-    for rp in items or []:
-        out.append(
-            {
-                "id": sanitize(str(rp.get("id", "")), 64),
-                "name": sanitize(str(rp.get("name", "")), 128),
-                "creationTime": sanitize(str(rp.get("creationTime", "")), 64),
-                "type": sanitize(str(rp.get("platformName", rp.get("type", ""))), 64),
-            }
-        )
-    return out
+    return [_restore_point_summary(rp) for rp in (items or [])]
 
 
 def start_vm_restore(conn: Any, restore_point_id: str) -> dict:

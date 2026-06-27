@@ -22,10 +22,13 @@ console = Console()
 
 @restore_app.command("list-points")
 @cli_errors
-def restore_list_points(target: TargetOption = None) -> None:
-    """List available restore points."""
+def restore_list_points(
+    target: TargetOption = None,
+    backup_id: str = typer.Option(None, "--backup-id", help="Filter to one backup's points"),
+) -> None:
+    """List available restore points (optionally filtered by backup)."""
     conn, _ = get_connection(target)
-    rows = restore.list_restore_points(conn)
+    rows = restore.list_restore_points(conn, backup_id)
     table = Table(title="Veeam Restore Points")
     for col in ("id", "name", "creationTime", "type"):
         table.add_column(col)

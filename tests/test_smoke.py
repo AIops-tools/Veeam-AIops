@@ -15,19 +15,24 @@ from typer.testing import CliRunner
 
 EXPECTED_TOOLS = {
     # jobs
-    "job_list", "job_get", "job_start", "job_stop", "job_enable", "job_disable",
+    "job_list", "job_get", "job_start", "job_stop", "job_retry",
+    "job_enable", "job_disable",
     # restore
     "restore_list_points", "start_vm_restore",
     # repositories
-    "repository_list",
+    "repository_list", "repository_get", "repository_state",
     # backups
-    "backup_list",
+    "backup_list", "backup_object_list",
     # sessions
-    "session_list", "session_get",
+    "session_list", "session_get", "session_log", "session_stop",
+    # infrastructure
+    "managed_server_list", "proxy_list",
+    # overview
+    "overview",
 }
 
 WRITE_TOOLS_WITH_UNDO = {
-    "job_start", "job_stop", "job_enable", "job_disable",
+    "job_start", "job_stop", "job_retry", "job_enable", "job_disable",
 }
 
 
@@ -38,19 +43,26 @@ def test_all_modules_import():
         "veeam_aiops.config",
         "veeam_aiops.connection",
         "veeam_aiops.doctor",
+        "veeam_aiops.secretstore",
         "veeam_aiops.ops.jobs",
         "veeam_aiops.ops.restore",
         "veeam_aiops.ops.repositories",
         "veeam_aiops.ops.sessions",
         "veeam_aiops.ops.backups",
+        "veeam_aiops.ops.infrastructure",
+        "veeam_aiops.ops.overview",
         "veeam_aiops.cli",
         "veeam_aiops.cli._root",
         "veeam_aiops.cli._common",
+        "veeam_aiops.cli.init",
+        "veeam_aiops.cli.secret",
         "veeam_aiops.cli.job",
         "veeam_aiops.cli.restore",
         "veeam_aiops.cli.repository",
         "veeam_aiops.cli.session",
         "veeam_aiops.cli.backup",
+        "veeam_aiops.cli.infrastructure",
+        "veeam_aiops.cli.overview",
         "veeam_aiops.cli.doctor",
         "mcp_server.server",
         "mcp_server._shared",
@@ -59,6 +71,8 @@ def test_all_modules_import():
         "mcp_server.tools.repositories",
         "mcp_server.tools.sessions",
         "mcp_server.tools.backups",
+        "mcp_server.tools.infrastructure",
+        "mcp_server.tools.overview",
     ):
         importlib.import_module(name)
 
@@ -67,7 +81,7 @@ def test_all_modules_import():
 def test_version():
     import veeam_aiops
 
-    assert veeam_aiops.__version__ == "0.1.0"
+    assert veeam_aiops.__version__ == "0.2.0"
 
 
 @pytest.mark.unit
@@ -77,7 +91,10 @@ def test_cli_app_builds_and_help_works():
     runner = CliRunner()
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for sub in ("job", "restore", "repository", "session", "backup", "doctor", "mcp"):
+    for sub in (
+        "job", "restore", "repository", "session", "backup", "infra",
+        "secret", "init", "overview", "doctor", "mcp",
+    ):
         assert sub in result.output
 
 
@@ -89,17 +106,24 @@ def test_cli_leaf_help_triggers_lazy_imports():
     runner = CliRunner()
     for cmd in (
         ["job", "--help"], ["restore", "--help"], ["repository", "--help"],
-        ["session", "--help"], ["backup", "--help"], ["doctor", "--help"],
+        ["session", "--help"], ["backup", "--help"], ["infra", "--help"],
+        ["secret", "--help"], ["doctor", "--help"],
     ):
         result = runner.invoke(app, cmd)
         assert result.exit_code == 0, f"{cmd} failed: {result.output}"
     for cmd in (
         ["job", "list", "--help"], ["job", "get", "--help"], ["job", "start", "--help"],
-        ["job", "stop", "--help"], ["job", "enable", "--help"], ["job", "disable", "--help"],
+        ["job", "stop", "--help"], ["job", "retry", "--help"],
+        ["job", "enable", "--help"], ["job", "disable", "--help"],
         ["restore", "list-points", "--help"], ["restore", "start", "--help"],
-        ["repository", "list", "--help"],
+        ["repository", "list", "--help"], ["repository", "get", "--help"],
+        ["repository", "state", "--help"],
         ["session", "list", "--help"], ["session", "get", "--help"],
-        ["backup", "list", "--help"],
+        ["session", "log", "--help"], ["session", "stop", "--help"],
+        ["backup", "list", "--help"], ["backup", "objects", "--help"],
+        ["infra", "servers", "--help"], ["infra", "proxies", "--help"],
+        ["secret", "list", "--help"], ["secret", "set", "--help"],
+        ["init", "--help"], ["overview", "--help"],
     ):
         result = runner.invoke(app, cmd)
         assert result.exit_code == 0, f"{cmd} failed: {result.output}"

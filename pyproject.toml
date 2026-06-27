@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "veeam-aiops"
-version = "0.1.0"
+version = "0.2.0"
 description = "Veeam Backup & Replication AI-powered backup operations with a built-in governance harness (audit, budget, undo, risk tiers)"
 readme = "README.md"
 license = "MIT"
@@ -15,7 +15,7 @@ dependencies = [
     "typer>=0.12,<1.0",
     "rich>=13.0,<16.0",
     "pyyaml>=6.0,<7.0",
-    "python-dotenv>=1.0,<2.0",
+    "cryptography>=42.0",
     "mcp[cli]>=1.10,<2.0",
 ]
 

@@ -89,6 +89,30 @@ def job_stop(job_id: str, target: Optional[str] = None) -> dict:
 @governed_tool(
     risk_level="medium",
     undo=lambda params, result: {
+        "tool": "job_stop",
+        "params": {"job_id": params.get("job_id")},
+        "skill": "veeam-aiops",
+        "note": "Inverse of job_retry: stop the in-flight retry.",
+    },
+)
+@tool_errors("dict")
+def job_retry(job_id: str, target: Optional[str] = None) -> dict:
+    """[WRITE] Retry a failed backup job (re-runs failed objects only).
+
+    Runs as an async session — poll with session_list / session_get. Inverse:
+    job_stop (cancels the in-flight retry).
+
+    Args:
+        job_id: Veeam job id.
+        target: Veeam target name from config.
+    """
+    return ops.retry_job(_get_connection(target), job_id)
+
+
+@mcp.tool()
+@governed_tool(
+    risk_level="medium",
+    undo=lambda params, result: {
         "tool": "job_disable",
         "params": {"job_id": params.get("job_id")},
         "skill": "veeam-aiops",

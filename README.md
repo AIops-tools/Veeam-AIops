@@ -12,22 +12,23 @@ coverage of every Veeam operation.
 
 ## What works
 
-- **CLI** (`veeam-aiops ...`): `job list/get/start/stop/enable/disable`, `restore list-points/start`, `repository list`, `session list/get`, `backup list`, `doctor`, `mcp`.
-- **MCP server** (`veeam-aiops mcp` or `veeam-aiops-mcp`): **12 tools** (8 read, 4 write), every one wrapped with the bundled `@governed_tool` harness.
-- **Reversibility**: write ops with a clean inverse (job start/stop, enable/disable) record an inverse undo descriptor; the irreversible VM restore declares none and is tagged `high` risk.
-- **Async sessions**: Veeam jobs and restores run as sessions — poll progress with `session list` / `session get` (the runaway budget guard prevents poll loops from running away).
+- **CLI** (`veeam-aiops ...`): `init`, `overview`, `job list/get/start/stop/retry/enable/disable`, `restore list-points/start`, `repository list/get/state`, `session list/get/log/stop`, `backup list/objects`, `infra servers/proxies`, `secret set/list/rm/migrate/rotate-password`, `doctor`, `mcp`.
+- **MCP server** (`veeam-aiops mcp` or `veeam-aiops-mcp`): **21 tools** (16 read, 5 write), every one wrapped with the bundled `@governed_tool` harness.
+- **Encrypted credentials**: passwords live in an encrypted store `~/.veeam-aiops/secrets.enc` (Fernet + scrypt) — **never plaintext on disk**. Unlock with a master password from `VEEAM_AIOPS_MASTER_PASSWORD` (MCP/CI) or an interactive prompt (CLI).
+- **Reversibility**: write ops with a clean inverse (job start/stop/retry, enable/disable) record an inverse undo descriptor; the irreversible VM restore declares none and is tagged `high` risk.
+- **Async sessions**: Veeam jobs and restores run as sessions — poll progress with `session list` / `session get` / `session log` (the runaway budget guard prevents poll loops from running away).
 
 ## Quick start
 
 ```bash
 uv tool install veeam-aiops
-mkdir -p ~/.veeam-aiops
-# create ~/.veeam-aiops/config.yaml with a targets: list
-# put passwords in ~/.veeam-aiops/.env  (chmod 600)
-veeam-aiops doctor
+veeam-aiops init        # interactive wizard: connection details + encrypted password
+veeam-aiops doctor      # verify config, encrypted store, connectivity
 ```
 
-Example `~/.veeam-aiops/config.yaml`:
+`init` writes `~/.veeam-aiops/config.yaml` (non-secret connection details) and
+stores the login password **encrypted** in `~/.veeam-aiops/secrets.enc`. Example
+config it produces:
 
 ```yaml
 targets:
@@ -38,7 +39,27 @@ targets:
     verify_ssl: false          # self-signed lab certs only
 ```
 
-`~/.veeam-aiops/.env` (chmod 600): `VEEAM_VBR_LAB_PASSWORD=<password>`
+For non-interactive use (MCP server, CI, cron) export the master password so the
+store can be unlocked without a prompt:
+
+```bash
+export VEEAM_AIOPS_MASTER_PASSWORD='your-master-password'
+```
+
+### Managing secrets
+
+```bash
+veeam-aiops secret set vbr-lab            # prompts hidden for the password
+veeam-aiops secret list                   # names only, values never shown
+veeam-aiops secret rm vbr-lab
+veeam-aiops secret rotate-password        # re-encrypt under a new master password
+veeam-aiops secret migrate                # import a legacy plaintext .env, then deletes it
+```
+
+Migrating from an old `~/.veeam-aiops/.env` (legacy `VEEAM_<TARGET>_PASSWORD`
+vars)? Run `veeam-aiops secret migrate`; the old `.env` is renamed to
+`.env.migrated`. The plaintext env var is still honoured as a fallback (with a
+deprecation warning) for a smooth transition.
 
 ## Audit & safety
 

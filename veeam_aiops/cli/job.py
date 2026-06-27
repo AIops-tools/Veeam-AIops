@@ -52,6 +52,15 @@ def job_start(job_id: str, target: TargetOption = None) -> None:
     console.print(f"[green]Started job {job_id}[/] (poll with 'session list')")
 
 
+@job_app.command("retry")
+@cli_errors
+def job_retry(job_id: str, target: TargetOption = None) -> None:
+    """Retry a failed backup job (re-runs failed objects only)."""
+    conn, _ = get_connection(target)
+    jobs.retry_job(conn, job_id)
+    console.print(f"[green]Retrying job {job_id}[/] (poll with 'session list')")
+
+
 @job_app.command("stop")
 @cli_errors
 def job_stop(

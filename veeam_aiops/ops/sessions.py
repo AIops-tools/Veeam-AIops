@@ -42,3 +42,34 @@ def get_session(conn: Any, session_id: str) -> dict:
     summary["progressPercent"] = s.get("progressPercent")
     summary["creationTime"] = sanitize(str(s.get("creationTime", "")), 64)
     return summary
+
+
+def get_session_log(conn: Any, session_id: str) -> list[dict]:
+    """[READ] Return the log records (events) of one session.
+
+    Use to see *why* a session failed instead of re-running the job blind.
+    Each record is reduced to its title, status, and timing.
+    """
+    data = conn.get(f"/api/v1/sessions/{session_id}/logs")
+    items = data.get("data", data) if isinstance(data, dict) else data
+    out: list[dict] = []
+    for rec in items or []:
+        out.append(
+            {
+                "title": sanitize(str(rec.get("title", rec.get("name", ""))), 200),
+                "status": sanitize(str(rec.get("status", "")), 32),
+                "startTime": sanitize(str(rec.get("startTime", "")), 64),
+                "endTime": sanitize(str(rec.get("endTime", "")), 64),
+            }
+        )
+    return out
+
+
+def stop_session(conn: Any, session_id: str) -> dict:
+    """[WRITE] Stop a running session (cancels the underlying operation).
+
+    No clean inverse — a stopped session must be re-issued via the originating
+    job/restore, so this records no undo descriptor.
+    """
+    conn.post(f"/api/v1/sessions/{session_id}/stop")
+    return {"session_id": sanitize(session_id, 64), "action": "stop"}

@@ -7,14 +7,18 @@ import typer
 from veeam_aiops.cli._common import cli_errors
 from veeam_aiops.cli.backup import backup_app
 from veeam_aiops.cli.doctor import doctor_cmd
+from veeam_aiops.cli.infrastructure import infra_app
+from veeam_aiops.cli.init import init_cmd
 from veeam_aiops.cli.job import job_app
+from veeam_aiops.cli.overview import overview_cmd
 from veeam_aiops.cli.repository import repository_app
 from veeam_aiops.cli.restore import restore_app
+from veeam_aiops.cli.secret import secret_app
 from veeam_aiops.cli.session import session_app
 
 app = typer.Typer(
     name="veeam-aiops",
-    help="Veeam Backup & Replication AI-powered backup operations (SKELETON / preview).",
+    help="Veeam Backup & Replication AI-powered backup operations.",
     no_args_is_help=True,
 )
 
@@ -23,6 +27,10 @@ app.add_typer(restore_app, name="restore")
 app.add_typer(repository_app, name="repository")
 app.add_typer(session_app, name="session")
 app.add_typer(backup_app, name="backup")
+app.add_typer(infra_app, name="infra")
+app.add_typer(secret_app, name="secret")
+app.command("init")(init_cmd)
+app.command("overview")(overview_cmd)
 app.command("doctor")(doctor_cmd)
 
 

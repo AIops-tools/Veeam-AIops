@@ -14,13 +14,19 @@ from veeam_aiops.ops import restore as ops
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("list")
-def restore_list_points(target: Optional[str] = None) -> list:
-    """[READ] List available restore points (id, name, creationTime, type).
+def restore_list_points(
+    backup_id: Optional[str] = None, target: Optional[str] = None
+) -> list:
+    """[READ] List restore points (id, name, creationTime, type).
+
+    Pass backup_id to filter to one backup's restore points (preview — server
+    filter support varies by Veeam version).
 
     Args:
+        backup_id: Optional Veeam backup id (see backup_list) to filter by.
         target: Veeam target name from config; omit to use the default.
     """
-    return ops.list_restore_points(_get_connection(target))
+    return ops.list_restore_points(_get_connection(target), backup_id)
 
 
 @mcp.tool()

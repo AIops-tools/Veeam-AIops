@@ -25,3 +25,29 @@ def repository_list(target: TargetOption = None) -> None:
     for r in rows:
         table.add_row(r["id"], r["name"], r["type"], r["path"])
     console.print(table)
+
+
+@repository_app.command("get")
+@cli_errors
+def repository_get(repository_id: str, target: TargetOption = None) -> None:
+    """Show detail for one repository (incl. capacity/free/used when known)."""
+    conn, _ = get_connection(target)
+    for k, v in repositories.get_repository(conn, repository_id).items():
+        console.print(f"  [cyan]{k}:[/] {v}")
+
+
+@repository_app.command("state")
+@cli_errors
+def repository_state(target: TargetOption = None) -> None:
+    """Capacity summary for every repository (capacity/free/used/used%)."""
+    conn, _ = get_connection(target)
+    rows = repositories.repository_state(conn)
+    table = Table(title="Veeam Repository Capacity")
+    for col in ("id", "name", "capacity", "free", "used", "usedPercent"):
+        table.add_column(col)
+    for r in rows:
+        table.add_row(
+            r["id"], r["name"], str(r.get("capacity", "")), str(r.get("free", "")),
+            str(r.get("used", "")), str(r.get("usedPercent", "")),
+        )
+    console.print(table)

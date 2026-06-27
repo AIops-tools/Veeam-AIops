@@ -22,3 +22,23 @@ def list_backups(conn: Any) -> list[dict]:
             }
         )
     return out
+
+
+def list_backup_objects(conn: Any, backup_id: str) -> list[dict]:
+    """[READ] List the protected objects (VMs/agents) inside a stored backup.
+
+    Use to see which machines a backup actually protects before restoring.
+    """
+    data = conn.get(f"/api/v1/backups/{backup_id}/objects")
+    items = data.get("data", data) if isinstance(data, dict) else data
+    out: list[dict] = []
+    for o in items or []:
+        out.append(
+            {
+                "id": sanitize(str(o.get("id", "")), 64),
+                "name": sanitize(str(o.get("name", "")), 128),
+                "type": sanitize(str(o.get("type", o.get("platformName", ""))), 64),
+                "objectId": sanitize(str(o.get("objectId", "")), 128),
+            }
+        )
+    return out

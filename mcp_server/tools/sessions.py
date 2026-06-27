@@ -33,3 +33,34 @@ def session_get(session_id: str, target: Optional[str] = None) -> dict:
         target: Veeam target name from config.
     """
     return ops.get_session(_get_connection(target), session_id)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("list")
+def session_log(session_id: str, target: Optional[str] = None) -> list:
+    """[READ] Return the log records (events) of one session.
+
+    Use to see why a session failed instead of re-running the job blind.
+
+    Args:
+        session_id: Veeam session id (see session_list).
+        target: Veeam target name from config.
+    """
+    return ops.get_session_log(_get_connection(target), session_id)
+
+
+@mcp.tool()
+@governed_tool(risk_level="medium")
+@tool_errors("dict")
+def session_stop(session_id: str, target: Optional[str] = None) -> dict:
+    """[WRITE] Stop a running session (cancels the underlying operation).
+
+    No undo token — a stopped session must be re-issued via the originating
+    job/restore.
+
+    Args:
+        session_id: Veeam session id (see session_list).
+        target: Veeam target name from config.
+    """
+    return ops.stop_session(_get_connection(target), session_id)

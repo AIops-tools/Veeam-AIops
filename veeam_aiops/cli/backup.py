@@ -25,3 +25,17 @@ def backup_list(target: TargetOption = None) -> None:
     for r in rows:
         table.add_row(r["id"], r["name"], r["type"], r["creationTime"])
     console.print(table)
+
+
+@backup_app.command("objects")
+@cli_errors
+def backup_objects(backup_id: str, target: TargetOption = None) -> None:
+    """List the protected objects (VMs/agents) inside a stored backup."""
+    conn, _ = get_connection(target)
+    rows = backups.list_backup_objects(conn, backup_id)
+    table = Table(title=f"Backup objects ({backup_id})")
+    for col in ("id", "name", "type", "objectId"):
+        table.add_column(col)
+    for r in rows:
+        table.add_row(r["id"], r["name"], r["type"], r["objectId"])
+    console.print(table)

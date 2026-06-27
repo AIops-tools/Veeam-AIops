@@ -1,63 +1,67 @@
 """Configuration management for Veeam AIops.
 
-Loads connection targets and settings from a YAML config file plus
-environment variables. Secrets (the login password) are NEVER stored in the
-config file — always sourced from the ``.env`` file or environment, with .env
-secret loading and chmod 600 checks.
+Loads connection targets and settings from a YAML config file. The secret (the
+Veeam login password) is NEVER stored in the config file and never on disk in
+plaintext: it lives in the encrypted store ``~/.veeam-aiops/secrets.enc`` (see
+:mod:`veeam_aiops.secretstore`). For backward compatibility a legacy plaintext
+env var (``VEEAM_<TARGET>_PASSWORD``) is still honoured as a fallback, with a
+warning nudging migration to the encrypted store.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-import stat
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-from dotenv import load_dotenv
+
+from veeam_aiops.secretstore import SecretStoreError, get_secret, has_store
 
 CONFIG_DIR = Path.home() / ".veeam-aiops"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 ENV_FILE = CONFIG_DIR / ".env"
 
+# Legacy env-var prefix/suffix; also used by the migration helper.
+SECRET_ENV_PREFIX = "VEEAM_"
+SECRET_ENV_SUFFIX = "_PASSWORD"
+
 _log = logging.getLogger("veeam-aiops.config")
-
-# Load secrets from .env (if present) before any config access.
-load_dotenv(ENV_FILE)
-
-
-def _check_env_permissions() -> None:
-    """Warn if the .env file is readable beyond the owner (should be 600)."""
-    if not ENV_FILE.exists():
-        return
-    try:
-        mode = ENV_FILE.stat().st_mode
-        if mode & (stat.S_IRWXG | stat.S_IRWXO):
-            _log.warning(
-                "Security warning: %s has permissions %s (should be 600). "
-                "Run: chmod 600 %s",
-                ENV_FILE,
-                oct(stat.S_IMODE(mode)),
-                ENV_FILE,
-            )
-    except OSError:
-        pass
-
-
-_check_env_permissions()
 
 
 def _secret_env_key(name: str) -> str:
-    """Per-target password env var name, e.g. VEEAM_VBR_LAB_PASSWORD."""
-    return f"VEEAM_{name.upper().replace('-', '_')}_PASSWORD"
+    """Legacy per-target password env var name, e.g. VEEAM_VBR_LAB_PASSWORD."""
+    return f"{SECRET_ENV_PREFIX}{name.upper().replace('-', '_')}{SECRET_ENV_SUFFIX}"
+
+
+def _resolve_secret(name: str) -> str:
+    """Return a target's password: encrypted store first, then legacy env var."""
+    if has_store():
+        try:
+            return get_secret(name)
+        except SecretStoreError:
+            pass  # fall through to legacy env var
+    legacy = os.environ.get(_secret_env_key(name))
+    if legacy:
+        _log.warning(
+            "Using plaintext env var %s. Migrate to the encrypted store with "
+            "'veeam-aiops secret migrate'.",
+            _secret_env_key(name),
+        )
+        return legacy
+    raise OSError(
+        f"No password for target '{name}'. Add one with "
+        f"'veeam-aiops secret set {name}' (stored encrypted), or run "
+        f"'veeam-aiops init'."
+    )
 
 
 @dataclass(frozen=True)
 class TargetConfig:
     """A Veeam Backup & Replication REST API connection target.
 
-    The password is sourced from the per-target env var (see ``password``),
+    The password is sourced from the encrypted secret store (see ``password``),
     never the config file. ``host`` is the VBR server; ``port`` defaults to the
     Veeam REST API port 9419.
     """
@@ -70,14 +74,7 @@ class TargetConfig:
 
     @property
     def password(self) -> str:
-        env_key = _secret_env_key(self.name)
-        value = os.environ.get(env_key, "")
-        if not value:
-            raise OSError(
-                f"Password not found. Set environment variable: {env_key} "
-                f"(in {ENV_FILE}, chmod 600)."
-            )
-        return value
+        return _resolve_secret(self.name)
 
     @property
     def base_url(self) -> str:
@@ -105,13 +102,13 @@ class AppConfig:
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
-    """Load config from YAML; the password comes from env, never the file."""
+    """Load config from YAML; the password comes from the encrypted store."""
     path = config_path or CONFIG_FILE
     if not path.exists():
         raise FileNotFoundError(
             f"Config file not found: {path}\n"
-            f"Create {CONFIG_FILE} with a 'targets' list and put passwords in "
-            f"{ENV_FILE} (chmod 600)."
+            f"Run 'veeam-aiops init' to set up a target and store its password "
+            f"encrypted, or create {CONFIG_FILE} with a 'targets' list."
         )
 
     with open(path) as f:

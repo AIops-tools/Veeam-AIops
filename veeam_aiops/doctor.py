@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.console import Console
 
 from veeam_aiops.config import CONFIG_FILE, ENV_FILE, load_config
+from veeam_aiops.secretstore import SECRETS_FILE, check_permissions, has_store
 
 _console = Console()
 
@@ -20,6 +21,7 @@ def run_doctor(skip_auth: bool = False) -> int:
 
     if not CONFIG_FILE.exists():
         _console.print(f"[red]✗ Config file missing: {CONFIG_FILE}[/]")
+        _console.print("[yellow]  Run 'veeam-aiops init' to set up your first target.[/]")
         return 1
     _console.print(f"[green]✓ Config file present: {CONFIG_FILE}[/]")
 
@@ -34,8 +36,21 @@ def run_doctor(skip_auth: bool = False) -> int:
         return 1
     _console.print(f"[green]✓ {len(config.targets)} target(s) configured[/]")
 
-    if not ENV_FILE.exists():
-        _console.print(f"[yellow]! Secrets file missing: {ENV_FILE}[/]")
+    if has_store():
+        _console.print(f"[green]✓ Encrypted secret store present: {SECRETS_FILE}[/]")
+        perm_warning = check_permissions()
+        if perm_warning:
+            _console.print(f"[yellow]! {perm_warning}[/]")
+    elif ENV_FILE.exists():
+        _console.print(
+            f"[yellow]! Using legacy plaintext .env ({ENV_FILE}). Migrate with "
+            f"'veeam-aiops secret migrate'.[/]"
+        )
+    else:
+        _console.print(
+            "[yellow]! No secret store yet. Run 'veeam-aiops init' to set up "
+            "credentials (stored encrypted).[/]"
+        )
         problems += 1
 
     for target in config.targets:

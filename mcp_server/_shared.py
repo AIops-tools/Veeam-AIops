@@ -75,11 +75,13 @@ def tool_errors(shape: str = "dict") -> Callable:
 mcp = FastMCP(
     "veeam-aiops",
     instructions=(
-        "Veeam Backup & Replication operations (preview): backup jobs "
-        "(list/get, start/stop, enable/disable), restore points + VM restore, "
-        "backup repositories, stored backups, and async sessions for polling "
-        "job/restore progress. Every tool runs through the veeam-aiops governance "
-        "harness (audit / budget / risk-tier / undo)."
+        "Veeam Backup & Replication operations (preview): a one-shot health "
+        "'overview'; backup jobs (list/get, start/stop/retry, enable/disable); "
+        "restore points (optionally per backup) + VM restore; backup "
+        "repositories (list/get/state capacity); stored backups + their objects; "
+        "infrastructure inventory (managed servers, proxies); and async sessions "
+        "(list/get, logs, stop) for polling job/restore progress. Every tool runs "
+        "through the veeam-aiops governance harness (audit / budget / risk-tier / undo)."
     ),
 )
 
