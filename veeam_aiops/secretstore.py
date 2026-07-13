@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 # ─── Tool-specific constants (change these three to vendor for another tool) ──
 APP_NAME = "veeam-aiops"
 CONFIG_DIR = Path.home() / ".veeam-aiops"
-MASTER_PASSWORD_ENV = "VEEAM_AIOPS_MASTER_PASSWORD"
+MASTER_PASSWORD_ENV = "VEEAM_AIOPS_MASTER_PASSWORD"  # nosec B105 — env-var name, not a secret
 # ──────────────────────────────────────────────────────────────────────────────
 
 SECRETS_FILE = CONFIG_DIR / "secrets.enc"

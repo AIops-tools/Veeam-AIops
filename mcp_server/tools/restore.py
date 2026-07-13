@@ -32,14 +32,20 @@ def restore_list_points(
 @mcp.tool()
 @governed_tool(risk_level="high")
 @tool_errors("dict")
-def start_vm_restore(restore_point_id: str, target: Optional[str] = None) -> dict:
+def start_vm_restore(
+    restore_point_id: str, dry_run: bool = False, target: Optional[str] = None
+) -> dict:
     """[WRITE] Start a VM restore from a restore point. IRREVERSIBLE — no undo token.
 
     Overwrites or creates a VM; confirm with the user before calling. Runs as an
-    async session — poll with session_list / session_get.
+    async session — poll with session_list / session_get. Pass dry_run=True to
+    preview.
 
     Args:
         restore_point_id: Restore point id (see restore_list_points).
+        dry_run: If True, preview without restoring.
         target: Veeam target name from config.
     """
+    if dry_run:
+        return {"dryRun": True, "wouldRestore": {"restore_point_id": restore_point_id}}
     return ops.start_vm_restore(_get_connection(target), restore_point_id)

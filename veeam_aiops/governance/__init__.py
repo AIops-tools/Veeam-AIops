@@ -8,7 +8,7 @@ any external skill family — this package is its own copy of the harness:
     and undo-token recording.
   - unified SQLite audit log under ``~/.veeam-aiops/`` (override with
     ``VEEAM_AIOPS_HOME``).
-  - ``sanitize`` — prompt-injection defense for API-returned text.
+  - ``sanitize`` — output hygiene (encoding-level cleanup) for API-returned text.
 
 State lives under ``ops_home()`` (default ``~/.veeam-aiops``).
 """

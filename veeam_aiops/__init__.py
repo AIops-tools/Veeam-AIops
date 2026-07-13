@@ -1,9 +1,14 @@
 """veeam-aiops — governed Veeam Backup & Replication operations for AI agents.
 
 Standalone and self-contained: the governance harness (audit, token budget,
-undo-token recording, graduated risk tiers, prompt-injection sanitize) is
+undo-token recording, graduated risk tiers, output sanitize) is
 bundled under ``veeam_aiops.governance`` — this package has no external
 skill-family dependency. Preview: not yet full-coverage.
 """
 
-__version__ = "0.2.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("veeam-aiops")
+except PackageNotFoundError:  # running from an uninstalled source tree
+    __version__ = "0.0.0+unknown"

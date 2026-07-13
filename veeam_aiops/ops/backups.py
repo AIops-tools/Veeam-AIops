@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from veeam_aiops.connection import _seg
 from veeam_aiops.governance import sanitize
 
 
@@ -29,7 +30,7 @@ def list_backup_objects(conn: Any, backup_id: str) -> list[dict]:
 
     Use to see which machines a backup actually protects before restoring.
     """
-    data = conn.get(f"/api/v1/backups/{backup_id}/objects")
+    data = conn.get(f"/api/v1/backups/{_seg(backup_id)}/objects")
     items = data.get("data", data) if isinstance(data, dict) else data
     out: list[dict] = []
     for o in items or []:

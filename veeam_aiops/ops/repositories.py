@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from veeam_aiops.connection import _seg
 from veeam_aiops.governance import sanitize
 
 _REPOS = "/api/v1/backupInfrastructure/repositories"
@@ -33,7 +34,7 @@ def get_repository(conn: Any, repository_id: str) -> dict:
     Merges the static repository record with its runtime state row (capacity /
     free / used) when the states endpoint exposes it.
     """
-    repo = conn.get(f"{_REPOS}/{repository_id}")
+    repo = conn.get(f"{_REPOS}/{_seg(repository_id)}")
     out = {
         "id": sanitize(str(repo.get("id", "")), 64),
         "name": sanitize(str(repo.get("name", "")), 128),

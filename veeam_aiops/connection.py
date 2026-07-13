@@ -22,6 +22,7 @@ connection layer from the first version, not let users hit raw tracebacks.
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -29,6 +30,16 @@ from veeam_aiops.config import AppConfig, TargetConfig, load_config
 
 API_VERSION = "1.1-rev1"
 _TIMEOUT = 30.0
+
+
+def _seg(value: Any) -> str:
+    """Percent-encode one URL *path segment* (agent-supplied ids).
+
+    Prevents path traversal / smuggling when an id like ``../jobs`` is
+    interpolated into an f-string REST path. Query-string params passed via
+    httpx ``params=`` must NOT go through this (httpx encodes those itself).
+    """
+    return quote(str(value), safe="")
 
 # Side-stored per-connection bearer token, keyed by id(client). See docstring.
 _CONN_TOKEN: dict[int, str] = {}

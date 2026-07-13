@@ -53,14 +53,17 @@ def session_log(session_id: str, target: Optional[str] = None) -> list:
 @mcp.tool()
 @governed_tool(risk_level="medium")
 @tool_errors("dict")
-def session_stop(session_id: str, target: Optional[str] = None) -> dict:
+def session_stop(session_id: str, dry_run: bool = False, target: Optional[str] = None) -> dict:
     """[WRITE] Stop a running session (cancels the underlying operation).
 
     No undo token — a stopped session must be re-issued via the originating
-    job/restore.
+    job/restore. Pass dry_run=True to preview.
 
     Args:
         session_id: Veeam session id (see session_list).
+        dry_run: If True, preview without stopping.
         target: Veeam target name from config.
     """
+    if dry_run:
+        return {"dryRun": True, "wouldStopSession": {"session_id": session_id}}
     return ops.stop_session(_get_connection(target), session_id)

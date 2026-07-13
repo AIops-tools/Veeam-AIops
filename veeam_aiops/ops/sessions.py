@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from veeam_aiops.connection import _seg
 from veeam_aiops.governance import sanitize
 
 
@@ -37,7 +38,7 @@ def get_session(conn: Any, session_id: str) -> dict:
     Use after start_job or start_vm_restore to follow the operation instead of
     re-issuing it.
     """
-    s = conn.get(f"/api/v1/sessions/{session_id}")
+    s = conn.get(f"/api/v1/sessions/{_seg(session_id)}")
     summary = _session_summary(s)
     summary["progressPercent"] = s.get("progressPercent")
     summary["creationTime"] = sanitize(str(s.get("creationTime", "")), 64)
@@ -50,7 +51,7 @@ def get_session_log(conn: Any, session_id: str) -> list[dict]:
     Use to see *why* a session failed instead of re-running the job blind.
     Each record is reduced to its title, status, and timing.
     """
-    data = conn.get(f"/api/v1/sessions/{session_id}/logs")
+    data = conn.get(f"/api/v1/sessions/{_seg(session_id)}/logs")
     items = data.get("data", data) if isinstance(data, dict) else data
     out: list[dict] = []
     for rec in items or []:
@@ -71,5 +72,5 @@ def stop_session(conn: Any, session_id: str) -> dict:
     No clean inverse — a stopped session must be re-issued via the originating
     job/restore, so this records no undo descriptor.
     """
-    conn.post(f"/api/v1/sessions/{session_id}/stop")
+    conn.post(f"/api/v1/sessions/{_seg(session_id)}/stop")
     return {"session_id": sanitize(session_id, 64), "action": "stop"}
