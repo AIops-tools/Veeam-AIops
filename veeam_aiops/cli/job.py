@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
+
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from mcp_server.tools import jobs as gov
 from veeam_aiops.cli._common import (
     DryRunOption,
     TargetOption,
@@ -47,18 +50,14 @@ def job_get(job_id: str, target: TargetOption = None) -> None:
 @cli_errors
 def job_start(job_id: str, target: TargetOption = None) -> None:
     """Start a backup job."""
-    conn, _ = get_connection(target)
-    jobs.start_job(conn, job_id)
-    console.print(f"[green]Started job {job_id}[/] (poll with 'session list')")
+    console.print_json(json.dumps(gov.job_start(job_id=job_id, target=target)))
 
 
 @job_app.command("retry")
 @cli_errors
 def job_retry(job_id: str, target: TargetOption = None) -> None:
     """Retry a failed backup job (re-runs failed objects only)."""
-    conn, _ = get_connection(target)
-    jobs.retry_job(conn, job_id)
-    console.print(f"[green]Retrying job {job_id}[/] (poll with 'session list')")
+    console.print_json(json.dumps(gov.job_retry(job_id=job_id, target=target)))
 
 
 @job_app.command("stop")
@@ -71,24 +70,18 @@ def job_stop(
         dry_run_print(operation="stop_job", api_call=f"POST /api/v1/jobs/{job_id}/stop")
         return
     double_confirm("stop", f"job {job_id}")
-    conn, _ = get_connection(target)
-    jobs.stop_job(conn, job_id)
-    console.print(f"[green]Stopped job {job_id}[/]")
+    console.print_json(json.dumps(gov.job_stop(job_id=job_id, target=target)))
 
 
 @job_app.command("enable")
 @cli_errors
 def job_enable(job_id: str, target: TargetOption = None) -> None:
     """Enable a backup job."""
-    conn, _ = get_connection(target)
-    jobs.enable_job(conn, job_id)
-    console.print(f"[green]Enabled job {job_id}[/]")
+    console.print_json(json.dumps(gov.job_enable(job_id=job_id, target=target)))
 
 
 @job_app.command("disable")
 @cli_errors
 def job_disable(job_id: str, target: TargetOption = None) -> None:
     """Disable a backup job (skips scheduled runs)."""
-    conn, _ = get_connection(target)
-    jobs.disable_job(conn, job_id)
-    console.print(f"[green]Disabled job {job_id}[/]")
+    console.print_json(json.dumps(gov.job_disable(job_id=job_id, target=target)))

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
+
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from mcp_server.tools import restore as gov
 from veeam_aiops.cli._common import (
     DryRunOption,
     TargetOption,
@@ -53,6 +56,6 @@ def restore_start(
         )
         return
     double_confirm("start VM restore (overwrites/creates a VM)", restore_point_id)
-    conn, _ = get_connection(target)
-    restore.start_vm_restore(conn, restore_point_id)
-    console.print(f"[green]Restore started from {restore_point_id}[/] (poll with 'session list')")
+    console.print_json(
+        json.dumps(gov.start_vm_restore(restore_point_id=restore_point_id, target=target))
+    )

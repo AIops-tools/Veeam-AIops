@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
+
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from mcp_server.tools import sessions as gov
 from veeam_aiops.cli._common import (
     DryRunOption,
     TargetOption,
@@ -71,6 +74,4 @@ def session_stop(
         )
         return
     double_confirm("stop", f"session {session_id}")
-    conn, _ = get_connection(target)
-    sessions.stop_session(conn, session_id)
-    console.print(f"[green]Stopped session {session_id}[/]")
+    console.print_json(json.dumps(gov.session_stop(session_id=session_id, target=target)))
