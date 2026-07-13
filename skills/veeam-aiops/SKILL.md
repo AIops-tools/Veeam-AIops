@@ -171,6 +171,7 @@ All operations are automatically audited via the bundled `@governed_tool` decora
 - Credentials stored **encrypted** in `~/.veeam-aiops/secrets.enc` (Fernet/AES-128 + scrypt key derivation; chmod 600) — never plaintext on disk; the master password is never stored, only a per-store salt + ciphertext
 - Every tool call logged to `~/.veeam-aiops/audit.db` (local SQLite audit DB; relocate with `VEEAM_AIOPS_HOME`)
 - Policy rules enforced via `~/.veeam-aiops/rules.yaml` (deny rules, maintenance windows, risk tiers)
+- **Secure by default (v0.3.0+)**: with no `~/.veeam-aiops/rules.yaml`, high/critical operations are denied unless `VEEAM_AUDIT_APPROVED_BY` names an approver (set `VEEAM_AUDIT_RATIONALE` too). `veeam-aiops init` seeds a starter rules.yaml; an operator-authored rules file is honoured as-is.
 - Budget / runaway guard caps cumulative tool calls and wall-time, and trips on tight session-poll/retry loops
 - Undo store records inverse descriptors for reversible writes (job start/stop/retry, enable/disable)
 - Graduated-autonomy risk tiers gate write operations (require a recorded approver for the highest tiers)
