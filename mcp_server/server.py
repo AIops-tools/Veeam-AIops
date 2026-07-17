@@ -25,6 +25,7 @@ from mcp_server.tools import (  # noqa: F401 — side effects
     repositories,
     restore,
     sessions,
+    undo,
 )
 
 __all__ = ["mcp", "main", "_safe_error", "tool_errors"]

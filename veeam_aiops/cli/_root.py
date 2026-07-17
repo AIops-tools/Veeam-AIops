@@ -15,6 +15,7 @@ from veeam_aiops.cli.repository import repository_app
 from veeam_aiops.cli.restore import restore_app
 from veeam_aiops.cli.secret import secret_app
 from veeam_aiops.cli.session import session_app
+from veeam_aiops.cli.undo import undo_app
 
 app = typer.Typer(
     name="veeam-aiops",
@@ -29,6 +30,7 @@ app.add_typer(session_app, name="session")
 app.add_typer(backup_app, name="backup")
 app.add_typer(infra_app, name="infra")
 app.add_typer(secret_app, name="secret")
+app.add_typer(undo_app, name="undo")
 app.command("init")(init_cmd)
 app.command("overview")(overview_cmd)
 app.command("doctor")(doctor_cmd)
