@@ -9,10 +9,22 @@ from __future__ import annotations
 
 from typing import Any
 
-from veeam_aiops.governance import sanitize
+from veeam_aiops.governance import opt_str
 
 _MANAGED_SERVERS = "/api/v1/backupInfrastructure/managedServers"
 _PROXIES = "/api/v1/backupInfrastructure/proxies"
+
+
+def _proxy_host(proxy: dict) -> object | None:
+    """Host name of the machine a proxy runs on, nested or flat, else None.
+
+    Returns None (not "") when neither shape carries a host, so an absent host
+    stays distinguishable from a host the API reported as empty.
+    """
+    server = proxy.get("server")
+    if isinstance(server, dict):
+        return server.get("hostName")
+    return proxy.get("serverName")
 
 
 def list_managed_servers(conn: Any) -> list[dict]:
@@ -23,10 +35,10 @@ def list_managed_servers(conn: Any) -> list[dict]:
     for s in items or []:
         out.append(
             {
-                "id": sanitize(str(s.get("id", "")), 64),
-                "name": sanitize(str(s.get("name", "")), 128),
-                "type": sanitize(str(s.get("type", "")), 64),
-                "description": sanitize(str(s.get("description", "")), 200),
+                "id": opt_str(s.get("id"), 64),
+                "name": opt_str(s.get("name"), 128),
+                "type": opt_str(s.get("type"), 64),
+                "description": opt_str(s.get("description"), 200),
             }
         )
     return out
@@ -40,11 +52,10 @@ def list_proxies(conn: Any) -> list[dict]:
     for p in items or []:
         out.append(
             {
-                "id": sanitize(str(p.get("id", "")), 64),
-                "name": sanitize(str(p.get("name", "")), 128),
-                "type": sanitize(str(p.get("type", "")), 64),
-                "server": sanitize(str(p.get("server", {}).get("hostName", "") if isinstance(
-                    p.get("server"), dict) else p.get("serverName", "")), 128),
+                "id": opt_str(p.get("id"), 64),
+                "name": opt_str(p.get("name"), 128),
+                "type": opt_str(p.get("type"), 64),
+                "server": opt_str(_proxy_host(p), 128),
             }
         )
     return out

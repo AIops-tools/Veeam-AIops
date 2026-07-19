@@ -1,6 +1,6 @@
 # veeam-aiops capabilities
 
-21 MCP tools (16 read, 5 write), each wrapped with the bundled `@governed_tool`
+25 MCP tools (17 read, 8 write), each wrapped with the bundled `@governed_tool`
 harness. Typical response token estimates assume a small/medium environment.
 
 ## Overview (1 — read)
@@ -11,6 +11,20 @@ harness. Typical response token estimates assume a small/medium environment.
 
 Fan-out health summary: jobs grouped by last result, repositories at/above 85%
 used, and currently-running sessions. Call this first to triage an environment.
+
+## Diagnostics / RCA (2 — read)
+
+| Tool | R/W | Risk | Typical response tokens |
+|------|:---:|:----:|:----------------------:|
+| `job_failure_rca` | R | low | ~200–600 |
+| `repository_capacity_rca` | R | low | ~150 |
+
+`job_failure_rca` scans recent job sessions, flags every Failed/Warning run, and
+categorizes the likely cause (repository full, source/guest unreachable,
+credential/VSS failure, retry exhaustion) from the failing log records — each
+finding cites the session result + matched error substring, worst-first.
+`repository_capacity_rca` flags repositories under the free-space thresholds
+(<15% warn, <10% critical), citing the measured free% and free bytes.
 
 ## Backup Jobs (7 — 2 read, 5 write)
 
@@ -87,12 +101,25 @@ REST endpoints: `GET /api/v1/sessions`, `GET /api/v1/sessions/{id}`,
 are how Veeam exposes async job/restore progress — poll these instead of
 re-issuing the originating operation; read `session_log` to see *why* one failed.
 
+## Undo (2 — 1 read, 1 write)
+
+| Tool | R/W | Risk | Undo | Typical response tokens |
+|------|:---:|:----:|------|:----------------------:|
+| `undo_list` | R | low | — | ~100–400 |
+| `undo_apply` | W | medium | **none — single-use** | ~60 |
+
+Generic governance tools provided by the bundled harness, not the Veeam REST
+API. `undo_list` lists the recorded reversible writes whose undo tokens have not
+yet been applied. `undo_apply` executes a recorded inverse for one token — it is
+itself governed (audited, policy- and budget-checked), single-use (a token
+cannot be replayed), and supports `dry_run` to preview the inverse first.
+
 ## Harness behavior
 
 - **Encrypted credentials**: passwords are stored in `~/.veeam-aiops/secrets.enc`
   (Fernet + scrypt), unlocked by `VEEAM_AIOPS_MASTER_PASSWORD` or a prompt —
   never plaintext on disk.
-- **Audit**: all 21 tools log to `~/.veeam-aiops/audit.db`.
+- **Audit**: all 25 tools log to `~/.veeam-aiops/audit.db`.
 - **Undo store**: the five reversible job writes record an inverse descriptor
   (`_undo_id` on the result); `session_stop` and the high-risk restore record none.
 - **Budget/runaway guard**: caps cumulative calls + wall-time and trips tight

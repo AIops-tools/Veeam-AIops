@@ -56,7 +56,7 @@ def _session_health(conn: Any) -> dict:
     running = [
         {"id": r.get("id"), "name": r.get("name")}
         for r in rows
-        if str(r.get("state", "")).lower() in _RUNNING_STATES
+        if str(r.get("state") or "").lower() in _RUNNING_STATES
     ]
     return {"recent": len(rows), "running": running}
 

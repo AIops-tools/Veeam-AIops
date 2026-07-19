@@ -2,17 +2,17 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.AIops-tools/veeam-aiops",
   "title": "Veeam AIops",
-  "description": "Governed Veeam Backup & Replication ops — 12 MCP tools with audit, budget, undo guards.",
+  "description": "Governed Veeam Backup & Replication ops — 25 MCP tools with audit, budget, undo guards.",
   "repository": {
     "url": "https://github.com/AIops-tools/Veeam-AIops",
     "source": "github"
   },
-  "version": "0.4.0",
+  "version": "0.5.0",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "veeam-aiops",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "transport": {
         "type": "stdio"
       }

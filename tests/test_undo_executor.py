@@ -59,7 +59,9 @@ def _record(undo_tool="_undo_probe", params=None):
 def test_undo_list_returns_recorded_tokens(gov_home):
     uid = _record()
     out = gov.undo_list()
-    assert out["count"] == 1
+    assert out["returned"] == 1
+    assert out["limit"] == 50
+    assert out["truncated"] is False
     assert out["undos"][0]["undoId"] == uid
     assert out["undos"][0]["inverseTool"] == "_undo_probe"
 

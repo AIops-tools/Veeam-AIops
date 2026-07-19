@@ -71,7 +71,17 @@ veeam-aiops session log <session_id>       # log records (events) of a session
 veeam-aiops session stop <session_id> [--dry-run]   # cancel — double confirm
 ```
 
-## Diagnostics & MCP
+## Diagnostics / RCA (read-only)
+
+```bash
+veeam-aiops diagnose job-failures          # triage failed/warning job sessions; categorize cause
+veeam-aiops diagnose repo-capacity         # flag repositories low on free space (<15% / <10%)
+```
+
+Both render worst-first findings, each citing the measured signal (session
+result + matched error substring, or free% / free bytes) that tripped it.
+
+## Doctor & MCP
 
 ```bash
 veeam-aiops doctor [--skip-auth]           # config + encrypted store + connectivity check

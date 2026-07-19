@@ -29,6 +29,8 @@ EXPECTED_TOOLS = {
     "managed_server_list", "proxy_list",
     # overview
     "overview",
+    # diagnostics / RCA
+    "job_failure_rca", "repository_capacity_rca",
 }
 
 WRITE_TOOLS_WITH_UNDO = {
@@ -51,6 +53,7 @@ def test_all_modules_import():
         "veeam_aiops.ops.backups",
         "veeam_aiops.ops.infrastructure",
         "veeam_aiops.ops.overview",
+        "veeam_aiops.ops.diagnostics",
         "veeam_aiops.cli",
         "veeam_aiops.cli._root",
         "veeam_aiops.cli._common",
@@ -63,6 +66,7 @@ def test_all_modules_import():
         "veeam_aiops.cli.backup",
         "veeam_aiops.cli.infrastructure",
         "veeam_aiops.cli.overview",
+        "veeam_aiops.cli.diagnostics",
         "veeam_aiops.cli.doctor",
         "mcp_server.server",
         "mcp_server._shared",
@@ -73,6 +77,7 @@ def test_all_modules_import():
         "mcp_server.tools.backups",
         "mcp_server.tools.infrastructure",
         "mcp_server.tools.overview",
+        "mcp_server.tools.diagnostics",
     ):
         importlib.import_module(name)
 
@@ -99,7 +104,7 @@ def test_cli_app_builds_and_help_works():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     for sub in (
-        "job", "restore", "repository", "session", "backup", "infra",
+        "job", "restore", "repository", "session", "backup", "diagnose", "infra",
         "secret", "init", "overview", "doctor", "mcp",
     ):
         assert sub in result.output
@@ -113,8 +118,8 @@ def test_cli_leaf_help_triggers_lazy_imports():
     runner = CliRunner()
     for cmd in (
         ["job", "--help"], ["restore", "--help"], ["repository", "--help"],
-        ["session", "--help"], ["backup", "--help"], ["infra", "--help"],
-        ["secret", "--help"], ["doctor", "--help"],
+        ["session", "--help"], ["backup", "--help"], ["diagnose", "--help"],
+        ["infra", "--help"], ["secret", "--help"], ["doctor", "--help"],
     ):
         result = runner.invoke(app, cmd)
         assert result.exit_code == 0, f"{cmd} failed: {result.output}"
@@ -128,6 +133,7 @@ def test_cli_leaf_help_triggers_lazy_imports():
         ["session", "list", "--help"], ["session", "get", "--help"],
         ["session", "log", "--help"], ["session", "stop", "--help"],
         ["backup", "list", "--help"], ["backup", "objects", "--help"],
+        ["diagnose", "job-failures", "--help"], ["diagnose", "repo-capacity", "--help"],
         ["infra", "servers", "--help"], ["infra", "proxies", "--help"],
         ["secret", "list", "--help"], ["secret", "set", "--help"],
         ["init", "--help"], ["overview", "--help"],
@@ -143,6 +149,16 @@ def test_mcp_list_tools_exposes_expected_tools():
     tools = asyncio.run(mcp.list_tools())
     names = {t.name for t in tools}
     assert EXPECTED_TOOLS <= names, f"missing: {EXPECTED_TOOLS - names}"
+
+
+@pytest.mark.unit
+def test_registered_tool_count_matches_docs():
+    """Drift guard: the advertised tool count must match the MCP registry."""
+    from mcp_server import _shared
+
+    assert len(_shared.mcp._tool_manager._tools) == 25, (
+        "tool count changed — update README/SKILL/server.json too"
+    )
 
 
 @pytest.mark.unit

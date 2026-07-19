@@ -75,7 +75,7 @@ def tool_errors(shape: str = "dict") -> Callable:
 mcp = FastMCP(
     "veeam-aiops",
     instructions=(
-        "Veeam Backup & Replication operations (preview): a one-shot health "
+        "Veeam Backup & Replication operations: a one-shot health "
         "'overview'; backup jobs (list/get, start/stop/retry, enable/disable); "
         "restore points (optionally per backup) + VM restore; backup "
         "repositories (list/get/state capacity); stored backups + their objects; "

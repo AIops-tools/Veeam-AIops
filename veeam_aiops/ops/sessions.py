@@ -12,16 +12,28 @@ from __future__ import annotations
 from typing import Any
 
 from veeam_aiops.connection import _seg
-from veeam_aiops.governance import sanitize
+from veeam_aiops.governance import opt_str, sanitize
+
+
+def _result_value(s: dict) -> object | None:
+    """Unwrap a session result, which VBR reports either nested or flat.
+
+    Returns None when the session has no result at all (a still-running session)
+    so the caller can tell "no result yet" from "result was empty".
+    """
+    raw = s.get("result")
+    if isinstance(raw, dict):
+        return raw.get("result")
+    return raw
 
 
 def _session_summary(s: dict) -> dict:
     return {
-        "id": sanitize(str(s.get("id", "")), 64),
-        "name": sanitize(str(s.get("name", "")), 128),
-        "type": sanitize(str(s.get("sessionType", s.get("type", ""))), 64),
-        "state": sanitize(str(s.get("state", "")), 32),
-        "result": sanitize(str((s.get("result") or {}).get("result", s.get("result", ""))), 32),
+        "id": opt_str(s.get("id"), 64),
+        "name": opt_str(s.get("name"), 128),
+        "type": opt_str(s.get("sessionType", s.get("type")), 64),
+        "state": opt_str(s.get("state"), 32),
+        "result": opt_str(_result_value(s), 32),
     }
 
 
@@ -41,7 +53,7 @@ def get_session(conn: Any, session_id: str) -> dict:
     s = conn.get(f"/api/v1/sessions/{_seg(session_id)}")
     summary = _session_summary(s)
     summary["progressPercent"] = s.get("progressPercent")
-    summary["creationTime"] = sanitize(str(s.get("creationTime", "")), 64)
+    summary["creationTime"] = opt_str(s.get("creationTime"), 64)
     return summary
 
 
@@ -57,10 +69,10 @@ def get_session_log(conn: Any, session_id: str) -> list[dict]:
     for rec in items or []:
         out.append(
             {
-                "title": sanitize(str(rec.get("title", rec.get("name", ""))), 200),
-                "status": sanitize(str(rec.get("status", "")), 32),
-                "startTime": sanitize(str(rec.get("startTime", "")), 64),
-                "endTime": sanitize(str(rec.get("endTime", "")), 64),
+                "title": opt_str(rec.get("title", rec.get("name")), 200),
+                "status": opt_str(rec.get("status"), 32),
+                "startTime": opt_str(rec.get("startTime"), 64),
+                "endTime": opt_str(rec.get("endTime"), 64),
             }
         )
     return out

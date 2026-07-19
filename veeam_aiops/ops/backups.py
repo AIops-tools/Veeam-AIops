@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from veeam_aiops.connection import _seg
-from veeam_aiops.governance import sanitize
+from veeam_aiops.governance import opt_str
 
 
 def list_backups(conn: Any) -> list[dict]:
@@ -16,10 +16,10 @@ def list_backups(conn: Any) -> list[dict]:
     for b in items or []:
         out.append(
             {
-                "id": sanitize(str(b.get("id", "")), 64),
-                "name": sanitize(str(b.get("name", "")), 128),
-                "type": sanitize(str(b.get("jobType", b.get("type", ""))), 64),
-                "creationTime": sanitize(str(b.get("creationTime", "")), 64),
+                "id": opt_str(b.get("id"), 64),
+                "name": opt_str(b.get("name"), 128),
+                "type": opt_str(b.get("jobType", b.get("type")), 64),
+                "creationTime": opt_str(b.get("creationTime"), 64),
             }
         )
     return out
@@ -36,10 +36,10 @@ def list_backup_objects(conn: Any, backup_id: str) -> list[dict]:
     for o in items or []:
         out.append(
             {
-                "id": sanitize(str(o.get("id", "")), 64),
-                "name": sanitize(str(o.get("name", "")), 128),
-                "type": sanitize(str(o.get("type", o.get("platformName", ""))), 64),
-                "objectId": sanitize(str(o.get("objectId", "")), 128),
+                "id": opt_str(o.get("id"), 64),
+                "name": opt_str(o.get("name"), 128),
+                "type": opt_str(o.get("type", o.get("platformName")), 64),
+                "objectId": opt_str(o.get("objectId"), 128),
             }
         )
     return out

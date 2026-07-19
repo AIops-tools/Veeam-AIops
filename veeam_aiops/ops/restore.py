@@ -12,15 +12,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from veeam_aiops.governance import sanitize
+from veeam_aiops.governance import opt_str, sanitize
 
 
 def _restore_point_summary(rp: dict) -> dict:
     return {
-        "id": sanitize(str(rp.get("id", "")), 64),
-        "name": sanitize(str(rp.get("name", "")), 128),
-        "creationTime": sanitize(str(rp.get("creationTime", "")), 64),
-        "type": sanitize(str(rp.get("platformName", rp.get("type", ""))), 64),
+        "id": opt_str(rp.get("id"), 64),
+        "name": opt_str(rp.get("name"), 128),
+        "creationTime": opt_str(rp.get("creationTime"), 64),
+        "type": opt_str(rp.get("platformName", rp.get("type")), 64),
     }
 
 

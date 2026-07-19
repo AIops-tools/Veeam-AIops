@@ -6,6 +6,7 @@ import typer
 
 from veeam_aiops.cli._common import cli_errors
 from veeam_aiops.cli.backup import backup_app
+from veeam_aiops.cli.diagnostics import diagnose_app
 from veeam_aiops.cli.doctor import doctor_cmd
 from veeam_aiops.cli.infrastructure import infra_app
 from veeam_aiops.cli.init import init_cmd
@@ -28,6 +29,7 @@ app.add_typer(restore_app, name="restore")
 app.add_typer(repository_app, name="repository")
 app.add_typer(session_app, name="session")
 app.add_typer(backup_app, name="backup")
+app.add_typer(diagnose_app, name="diagnose")
 app.add_typer(infra_app, name="infra")
 app.add_typer(secret_app, name="secret")
 app.add_typer(undo_app, name="undo")

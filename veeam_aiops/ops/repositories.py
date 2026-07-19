@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from veeam_aiops.connection import _seg
-from veeam_aiops.governance import sanitize
+from veeam_aiops.governance import opt_str
 
 _REPOS = "/api/v1/backupInfrastructure/repositories"
 _REPO_STATES = "/api/v1/backupInfrastructure/repositories/states"
@@ -19,10 +19,10 @@ def list_repositories(conn: Any) -> list[dict]:
     for repo in items or []:
         out.append(
             {
-                "id": sanitize(str(repo.get("id", "")), 64),
-                "name": sanitize(str(repo.get("name", "")), 128),
-                "type": sanitize(str(repo.get("type", "")), 64),
-                "path": sanitize(str(repo.get("path", "")), 256),
+                "id": opt_str(repo.get("id"), 64),
+                "name": opt_str(repo.get("name"), 128),
+                "type": opt_str(repo.get("type"), 64),
+                "path": opt_str(repo.get("path"), 256),
             }
         )
     return out
@@ -36,11 +36,11 @@ def get_repository(conn: Any, repository_id: str) -> dict:
     """
     repo = conn.get(f"{_REPOS}/{_seg(repository_id)}")
     out = {
-        "id": sanitize(str(repo.get("id", "")), 64),
-        "name": sanitize(str(repo.get("name", "")), 128),
-        "type": sanitize(str(repo.get("type", "")), 64),
-        "path": sanitize(str(repo.get("path", "")), 256),
-        "description": sanitize(str(repo.get("description", "")), 200),
+        "id": opt_str(repo.get("id"), 64),
+        "name": opt_str(repo.get("name"), 128),
+        "type": opt_str(repo.get("type"), 64),
+        "path": opt_str(repo.get("path"), 256),
+        "description": opt_str(repo.get("description"), 200),
     }
     state = _state_for(conn, repository_id)
     if state:
@@ -82,9 +82,9 @@ def repository_state(conn: Any) -> list[dict]:
     out: list[dict] = []
     for row in items or []:
         entry = {
-            "id": sanitize(str(row.get("id", "")), 64),
-            "name": sanitize(str(row.get("name", "")), 128),
-            "type": sanitize(str(row.get("type", "")), 64),
+            "id": opt_str(row.get("id"), 64),
+            "name": opt_str(row.get("name"), 128),
+            "type": opt_str(row.get("type"), 64),
         }
         entry.update(_capacity_fields(row))
         out.append(entry)

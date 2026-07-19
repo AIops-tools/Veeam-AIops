@@ -36,23 +36,38 @@ def undo_list(limit: int = 50, target: Optional[str] = None) -> dict:
     Each entry names the original tool, the inverse tool that ``undo_apply``
     would run, and a human note. Use the ``undoId`` with ``undo_apply``.
 
+    Returns an envelope rather than a bare list::
+
+        {"undos": [...], "returned": 50, "limit": 50, "truncated": true}
+
+    so a truncated read announces itself. A bare list cannot say "there is
+    more" — the consumer has to infer it from the length happening to equal the
+    limit, and a smaller local model faced with a capped result tends to report
+    that it has seen every token. One extra row is requested so ``truncated``
+    is *measured* rather than guessed from a length coincidence.
+
     Args:
-        limit: Max rows to return (default 50).
+        limit: Max rows to return (default 50, capped at 500).
         target: Unused (undo state is host-local); accepted for CLI uniformity.
     """
-    rows = get_undo_store().list(status="recorded", limit=max(1, min(limit, 500)))
+    requested = max(1, min(int(limit), 500))
+    rows = get_undo_store().list(status="recorded", limit=requested + 1)
+    truncated = len(rows) > requested
+    undos = [
+        {
+            "undoId": r["undo_id"],
+            "ts": r["ts"],
+            "originalTool": r["tool"],
+            "inverseTool": r["undo_tool"],
+            "note": r.get("note", ""),
+        }
+        for r in rows[:requested]
+    ]
     return {
-        "count": len(rows),
-        "undos": [
-            {
-                "undoId": r["undo_id"],
-                "ts": r["ts"],
-                "originalTool": r["tool"],
-                "inverseTool": r["undo_tool"],
-                "note": r.get("note", ""),
-            }
-            for r in rows
-        ],
+        "undos": undos,
+        "returned": len(undos),
+        "limit": requested,
+        "truncated": truncated,
     }
 
 

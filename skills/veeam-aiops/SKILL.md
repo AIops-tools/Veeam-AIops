@@ -1,10 +1,16 @@
 ---
 name: veeam-aiops
+slug: veeam-aiops
+displayName: "Veeam AIops"
+summary: "Governed Veeam Backup & Replication ops — 25 MCP tools with audit, budget, undo guards."
+license: MIT
+homepage: https://github.com/AIops-tools/Veeam-AIops
+tags: [aiops, mcp, governance, veeam]
 description: >
-  Use this skill whenever the user needs to operate Veeam Backup & Replication — a one-shot health overview, list/inspect/start/stop/retry backup jobs, enable/disable jobs, list restore points and start a VM restore, list backup repositories with capacity, list stored backups and their objects, inventory backup infrastructure (managed servers, proxies), and poll/stop async sessions for job/restore progress.
+  Use this skill whenever the user needs to operate Veeam Backup & Replication — a one-shot health overview, read-only diagnostics / RCA (triage failed backup-job sessions and flag repositories low on space), list/inspect/start/stop/retry backup jobs, enable/disable jobs, list restore points and start a VM restore, list backup repositories with capacity, list stored backups and their objects, inventory backup infrastructure (managed servers, proxies), and poll/stop async sessions for job/restore progress.
   Always use this skill for "list veeam jobs", "run veeam backup", "start veeam job", "veeam restore", "veeam repository", "veeam backup status", or "veeam session" when the context is explicitly Veeam / Veeam Backup & Replication / VBR.
   Do NOT use when the target is not Veeam Backup & Replication (other backup products, hypervisor lifecycle, or cloud providers are out of scope).
-  Preview — common Veeam B&R operations with a built-in governance harness (audit, policy, token budget, undo, risk-tiers).
+  Common Veeam B&R operations with a built-in governance harness (audit, policy, token budget, undo, risk-tiers).
 installer:
   kind: uv
   package: veeam-aiops
@@ -13,7 +19,7 @@ allowed-tools:
   - Bash
 metadata: {"openclaw":{"requires":{"env":["VEEAM_AIOPS_CONFIG"],"bins":["veeam-aiops"],"config":["~/.veeam-aiops/config.yaml","~/.veeam-aiops/secrets.enc"]},"optional":{"env":["VEEAM_AIOPS_MASTER_PASSWORD"]},"primaryEnv":"VEEAM_AIOPS_CONFIG","homepage":"https://github.com/AIops-tools/Veeam-AIops","emoji":"💾","os":["macos","linux"]}}
 compatibility: >
-  Standalone, self-governed Veeam Backup & Replication operations (preview). The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency.
+  Standalone, self-governed Veeam Backup & Replication operations. The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency.
   All write operations are audited to a local SQLite DB under ~/.veeam-aiops/ (relocatable via VEEAM_AIOPS_HOME).
   Credentials: Each Veeam target's login password is stored ENCRYPTED in ~/.veeam-aiops/secrets.enc (Fernet/AES-128 + scrypt-derived key) — never plaintext on disk. Run 'veeam-aiops init' to onboard, or 'veeam-aiops secret set <target>' to add one. The store is unlocked by a master password from VEEAM_AIOPS_MASTER_PASSWORD (non-interactive/MCP/CI) or an interactive prompt (CLI on a TTY). A legacy plaintext env var VEEAM_<TARGET_NAME_UPPER>_PASSWORD is still honoured as a fallback with a deprecation warning (migrate with 'veeam-aiops secret migrate'). The password is exchanged for a short-lived OAuth2 bearer token at connect time and held only in memory; passwords/tokens are never logged or echoed.
   Destructive operations (job stop, session stop, restore start) require double confirmation at the CLI layer and support --dry-run. All write tools pass through the @governed_tool decorator (pre-check + budget guard + audit + risk-tier gate). Reversible writes (job start/stop/retry, enable/disable) record an inverse undo descriptor; session stop and the VM restore are irreversible and record none.
@@ -22,19 +28,20 @@ compatibility: >
   Transitive dependencies: httpx (HTTP client) and the MCP SDK. No post-install scripts or background services.
 ---
 
-# Veeam AIops (preview)
+# Veeam AIops
 
 > **Disclaimer**: This is a community-maintained open-source project and is **not affiliated with, endorsed by, or sponsored by Veeam Software.** "Veeam" is a trademark of its owner. Source code is publicly auditable at [github.com/AIops-tools/Veeam-AIops](https://github.com/AIops-tools/Veeam-AIops) under the MIT license.
 
-Governed Veeam Backup & Replication operations — **21 MCP tools**, every one wrapped with the bundled `@governed_tool` harness: a local unified audit log under `~/.veeam-aiops/`, policy engine, token/runaway budget guard, undo-token recording, and graduated-autonomy risk tiers. Credentials are stored **encrypted** (`~/.veeam-aiops/secrets.enc`, Fernet + scrypt) — never plaintext on disk.
+Governed Veeam Backup & Replication operations — **25 MCP tools**, every one wrapped with the bundled `@governed_tool` harness: a local unified audit log under `~/.veeam-aiops/`, policy engine, token/runaway budget guard, undo-token recording, and graduated-autonomy risk tiers. Credentials are stored **encrypted** (`~/.veeam-aiops/secrets.enc`, Fernet + scrypt) — never plaintext on disk.
 
-> **Standalone**: the governance harness is bundled in the package (`veeam_aiops.governance`) — veeam-aiops has no external skill-family dependency. Preview: common Veeam operations, not yet exhaustive.
+> **Standalone**: the governance harness is bundled in the package (`veeam_aiops.governance`) — veeam-aiops has no external skill-family dependency. Coverage focuses on common Veeam operations and is not yet exhaustive.
 
 ## What This Skill Does
 
 | Category | Tools | Count | Read or Write |
 |----------|-------|:-----:|:-------------:|
 | **Overview** | health overview | 1 | 1 read |
+| **Diagnostics / RCA** | job-failure triage, repository capacity | 2 | 2 read |
 | **Backup Jobs** | list, get, start, stop, retry, enable, disable | 7 | 2 read / 5 write |
 | **Restore** | list restore points (opt. per backup), start VM restore | 2 | 1 read / 1 write |
 | **Repositories** | list, get (detail), state (capacity) | 3 | 3 read |
@@ -71,6 +78,13 @@ veeam-aiops doctor
 
 ## Common Workflows
 
+### Diagnose why last night's backups failed
+
+1. `veeam-aiops diagnose job-failures` → worst-first table of Failed/Warning sessions, each with the categorized cause (repository full / source unreachable / credential-VSS / retry exhaustion) and the cited failing log line
+2. If a finding says **repository full**, confirm with `veeam-aiops diagnose repo-capacity` → the flagged repo's measured free% and free bytes
+3. Fix the root cause (extend/offload the repository, restore source connectivity, or repair guest credentials/VSS), then `veeam-aiops job retry <job_id>` to re-run only the failed objects
+4. `veeam-aiops session list` → `veeam-aiops session get <session_id>` to confirm the retry completes — do not tight-loop `session get` (the runaway budget guard will trip it)
+
 ### Run a backup job and follow it to completion
 
 1. `veeam-aiops job list` → find the job id and confirm `lastResult`
@@ -93,11 +107,12 @@ veeam-aiops doctor
 | Cloud models (Claude, GPT) | Either | MCP gives structured JSON I/O |
 | Automated pipelines | **MCP** | type-safe parameters, audited |
 
-## MCP Tools (21 — 16 read, 5 write)
+## MCP Tools (25 — 17 read, 8 write)
 
 | Category | Tools | R/W |
 |----------|-------|:---:|
 | Overview | `overview` | Read |
+| Diagnostics / RCA | `job_failure_rca`, `repository_capacity_rca` | Read |
 | Backup Jobs | `job_list`, `job_get` | Read |
 | | `job_start`, `job_stop`, `job_retry`, `job_enable`, `job_disable` | Write |
 | Restore | `restore_list_points` | Read |
@@ -107,14 +122,18 @@ veeam-aiops doctor
 | Infrastructure | `managed_server_list`, `proxy_list` | Read |
 | Sessions | `session_list`, `session_get`, `session_log` | Read |
 | | `session_stop` | Write |
+| Undo | `undo_list` | Read |
+| | `undo_apply` | Write |
 
-**Harness features that light up**: write tools with a clean inverse (`job_start`↔`job_stop`, `job_retry`→`job_stop`, `job_enable`↔`job_disable`) pass an `undo=` lambda so the harness records an inverse descriptor (with `_undo_id`) to the undo store. The irreversible `start_vm_restore` and `session_stop` declare no undo; `start_vm_restore` is tagged `risk_level=high`. All 21 tools are audit-logged under `~/.veeam-aiops/` and pass through the policy pre-check + budget/runaway guard + graduated risk-tier gate. Veeam jobs/restores run as async sessions — poll with `session_get` / `session_log` instead of re-issuing (the runaway breaker backs this up). Start any triage with `overview` (jobs by last result, repos near full, running sessions).
+**Harness features that light up**: write tools with a clean inverse (`job_start`↔`job_stop`, `job_retry`→`job_stop`, `job_enable`↔`job_disable`) pass an `undo=` lambda so the harness records an inverse descriptor (with `_undo_id`) to the undo store. The irreversible `start_vm_restore` and `session_stop` declare no undo; `start_vm_restore` is tagged `risk_level=high`. All 25 tools are audit-logged under `~/.veeam-aiops/` and pass through the policy pre-check + budget/runaway guard + graduated risk-tier gate. Veeam jobs/restores run as async sessions — poll with `session_get` / `session_log` instead of re-issuing (the runaway breaker backs this up). Start any triage with `overview` (jobs by last result, repos near full, running sessions), then drill in with `job_failure_rca` (categorizes failing sessions with cited error substrings) and `repository_capacity_rca` (cited free%).
 
 ## CLI Quick Reference
 
 ```bash
 veeam-aiops init                                      # onboarding wizard (encrypted password)
 veeam-aiops overview [--target <t>]                   # health summary
+veeam-aiops diagnose job-failures [--target <t>]      # RCA: triage failed job sessions
+veeam-aiops diagnose repo-capacity [--target <t>]     # RCA: repos low on free space
 veeam-aiops job list [--target <t>]
 veeam-aiops job get <job_id>
 veeam-aiops job start <job_id>
@@ -180,7 +199,7 @@ The harness is bundled in the package — no external dependency, no manual setu
 
 ## Contributing & feature requests
 
-This is a preview — coverage is intentionally focused. **Missing a device, action, or feature you need?** Open an issue or pull request at [github.com/AIops-tools/Veeam-AIops](https://github.com/AIops-tools/Veeam-AIops/issues) — feature requests, contributions, and comments are all welcome.
+Coverage is intentionally focused. **Missing a device, action, or feature you need?** Open an issue or pull request at [github.com/AIops-tools/Veeam-AIops](https://github.com/AIops-tools/Veeam-AIops/issues) — feature requests, contributions, and comments are all welcome.
 
 ## License
 

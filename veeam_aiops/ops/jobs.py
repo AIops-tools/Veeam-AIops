@@ -1,8 +1,10 @@
 """Backup job operations for Veeam Backup & Replication.
 
 Bodies are thin wrappers over the VBR REST API (``/api/v1/jobs``). All
-API-returned text is run through ``sanitize()`` before reaching the caller
-(output hygiene). Returns are high-signal summaries, not full blobs.
+API-returned text is run through ``opt_str()`` before reaching the caller
+(output hygiene; an absent field stays ``None`` rather than collapsing to
+``""``, so a caller can tell "the API had no value" from "the value was
+empty"). Returns are high-signal summaries, not full blobs.
 """
 
 from __future__ import annotations
@@ -10,17 +12,17 @@ from __future__ import annotations
 from typing import Any
 
 from veeam_aiops.connection import _seg
-from veeam_aiops.governance import sanitize
+from veeam_aiops.governance import opt_str, sanitize
 
 
 def _job_summary(job: dict) -> dict:
     """Reduce a Veeam job record to a high-signal summary."""
     return {
-        "id": sanitize(str(job.get("id", "")), 64),
-        "name": sanitize(str(job.get("name", "")), 128),
-        "type": sanitize(str(job.get("type", "")), 64),
-        "status": sanitize(str(job.get("status", "")), 32),
-        "lastResult": sanitize(str(job.get("lastResult", "")), 32),
+        "id": opt_str(job.get("id"), 64),
+        "name": opt_str(job.get("name"), 128),
+        "type": opt_str(job.get("type"), 64),
+        "status": opt_str(job.get("status"), 32),
+        "lastResult": opt_str(job.get("lastResult"), 32),
         "isDisabled": job.get("isDisabled"),
     }
 
@@ -37,8 +39,8 @@ def _job_state(conn: Any, job_id: str) -> dict:
     except Exception:  # noqa: BLE001 — advisory only
         return {}
     return {
-        "status": sanitize(str(job.get("status", "")), 32),
-        "lastResult": sanitize(str(job.get("lastResult", "")), 32),
+        "status": opt_str(job.get("status"), 32),
+        "lastResult": opt_str(job.get("lastResult"), 32),
     }
 
 
@@ -53,7 +55,7 @@ def get_job(conn: Any, job_id: str) -> dict:
     """[READ] Return detail for a single backup job by id (incl. schedule)."""
     job = conn.get(f"/api/v1/jobs/{_seg(job_id)}")
     summary = _job_summary(job)
-    summary["description"] = sanitize(str(job.get("description", "")), 200)
+    summary["description"] = opt_str(job.get("description"), 200)
     schedule = job.get("schedule") or {}
     if isinstance(schedule, dict):
         summary["scheduleEnabled"] = schedule.get("runAutomatically")
