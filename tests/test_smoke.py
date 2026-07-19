@@ -233,7 +233,7 @@ def test_connection_login_and_error_translation(monkeypatch):
     import httpx
 
     from veeam_aiops.config import TargetConfig
-    from veeam_aiops.connection import VeeamApiError, VeeamConnection, get_token
+    from veeam_aiops.connection import VeeamApiError, VeeamConnection
 
     monkeypatch.setenv("VEEAM_LAB_PASSWORD", "secret")
     target = TargetConfig(name="lab", host="vbr.local", username="admin", verify_ssl=False)
@@ -265,7 +265,6 @@ def test_connection_login_and_error_translation(monkeypatch):
 
     monkeypatch.setattr(httpx, "Client", _Client)
     conn = VeeamConnection(target)
-    assert get_token(conn._client) == "TOK"
     assert conn._client.headers["Authorization"] == "Bearer TOK"
     assert conn.get("/api/v1/ok") == {"data": []}
     with pytest.raises(VeeamApiError) as ei:

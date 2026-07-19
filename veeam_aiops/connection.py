@@ -41,9 +41,6 @@ def _seg(value: Any) -> str:
     """
     return quote(str(value), safe="")
 
-# Side-stored per-connection bearer token, keyed by id(client). See docstring.
-_CONN_TOKEN: dict[int, str] = {}
-
 
 class VeeamApiError(Exception):
     """A Veeam REST API call failed; carries a teaching message + status code."""
@@ -52,11 +49,6 @@ class VeeamApiError(Exception):
         self.status_code = status_code
         self.path = path
         super().__init__(message)
-
-
-def get_token(client: Any) -> str:
-    """Return the bearer token stashed for ``client`` (empty if none)."""
-    return _CONN_TOKEN.get(id(client), "")
 
 
 def _teaching_message(status: int, path: str, body: str) -> str:
@@ -128,7 +120,6 @@ class VeeamConnection:
                 "Veeam token endpoint returned no access_token.",
                 path="/api/oauth2/token",
             )
-        _CONN_TOKEN[id(self._client)] = token
         self._client.headers["Authorization"] = f"Bearer {token}"
 
     def request(self, method: str, path: str, **kwargs: Any) -> Any:
@@ -160,7 +151,7 @@ class VeeamConnection:
         return self.request("POST", path, **kwargs)
 
     def close(self) -> None:
-        _CONN_TOKEN.pop(id(self._client), None)
+        self._client.headers.pop("Authorization", None)
         self._client.close()
 
 

@@ -18,7 +18,6 @@ from veeam_aiops.connection import (
     VeeamConnection,
     _seg,
     _teaching_message,
-    get_token,
 )
 
 
@@ -98,10 +97,11 @@ def _install_client(monkeypatch, *, token_resp=None, request_fn=None, post_raise
 
 
 @pytest.mark.unit
-def test_login_success_stashes_bearer(monkeypatch):
+def test_login_success_sets_bearer_header(monkeypatch):
     _install_client(monkeypatch)
     conn = VeeamConnection(_target(monkeypatch))
-    assert get_token(conn._client) == "TOK"
+    # The Authorization header IS the auth mechanism — assert it directly rather
+    # than a side cache, so the test fails if login stops authenticating.
     assert conn._client.headers["Authorization"] == "Bearer TOK"
 
 
@@ -179,13 +179,13 @@ def test_request_error_status_translated(monkeypatch):
 
 
 @pytest.mark.unit
-def test_close_pops_token(monkeypatch):
+def test_close_clears_credential_and_closes_client(monkeypatch):
     _install_client(monkeypatch)
     conn = VeeamConnection(_target(monkeypatch))
     client = conn._client
-    assert get_token(client) == "TOK"
+    assert client.headers["Authorization"] == "Bearer TOK"
     conn.close()
-    assert get_token(client) == ""
+    assert "Authorization" not in client.headers
     assert client.closed is True
 
 
