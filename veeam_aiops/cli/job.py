@@ -16,6 +16,7 @@ from veeam_aiops.cli._common import (
     double_confirm,
     dry_run_print,
     get_connection,
+    governed,
 )
 from veeam_aiops.ops import jobs
 
@@ -50,14 +51,14 @@ def job_get(job_id: str, target: TargetOption = None) -> None:
 @cli_errors
 def job_start(job_id: str, target: TargetOption = None) -> None:
     """Start a backup job."""
-    console.print_json(json.dumps(gov.job_start(job_id=job_id, target=target)))
+    console.print_json(json.dumps(governed(gov.job_start(job_id=job_id, target=target))))
 
 
 @job_app.command("retry")
 @cli_errors
 def job_retry(job_id: str, target: TargetOption = None) -> None:
     """Retry a failed backup job (re-runs failed objects only)."""
-    console.print_json(json.dumps(gov.job_retry(job_id=job_id, target=target)))
+    console.print_json(json.dumps(governed(gov.job_retry(job_id=job_id, target=target))))
 
 
 @job_app.command("stop")
@@ -67,21 +68,26 @@ def job_stop(
 ) -> None:
     """Stop a running backup job (destructive — double confirm)."""
     if dry_run:
-        dry_run_print(operation="stop_job", api_call=f"POST /api/v1/jobs/{job_id}/stop")
+        preview = governed(gov.job_stop(job_id=job_id, dry_run=True, target=target))
+        dry_run_print(
+            operation="stop_job",
+            api_call=f"POST /api/v1/jobs/{job_id}/stop",
+            parameters=preview.get("wouldStop", {}),
+        )
         return
     double_confirm("stop", f"job {job_id}")
-    console.print_json(json.dumps(gov.job_stop(job_id=job_id, target=target)))
+    console.print_json(json.dumps(governed(gov.job_stop(job_id=job_id, target=target))))
 
 
 @job_app.command("enable")
 @cli_errors
 def job_enable(job_id: str, target: TargetOption = None) -> None:
     """Enable a backup job."""
-    console.print_json(json.dumps(gov.job_enable(job_id=job_id, target=target)))
+    console.print_json(json.dumps(governed(gov.job_enable(job_id=job_id, target=target))))
 
 
 @job_app.command("disable")
 @cli_errors
 def job_disable(job_id: str, target: TargetOption = None) -> None:
     """Disable a backup job (skips scheduled runs)."""
-    console.print_json(json.dumps(gov.job_disable(job_id=job_id, target=target)))
+    console.print_json(json.dumps(governed(gov.job_disable(job_id=job_id, target=target))))

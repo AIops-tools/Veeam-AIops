@@ -43,7 +43,7 @@ def undo_recorder(monkeypatch):
     recorded: list[dict] = []
 
     class _Store:
-        def record(self, *, skill, tool, undo_descriptor, orig_params):
+        def record(self, *, skill, tool, undo_descriptor, orig_params, effect_verified=True):
             recorded.append(undo_descriptor)
             return f"undo-{len(recorded)}"
 
@@ -456,12 +456,13 @@ def test_restore_list_points_passes_backup_filter_as_query_param(monkeypatch, fa
 
 
 @pytest.mark.unit
-def test_start_vm_restore_dry_run_makes_no_api_call(monkeypatch, fake_veeam, undo_recorder):
+def test_start_vm_restore_dry_run_makes_no_write_call(monkeypatch, fake_veeam, undo_recorder):
+    """The preview reads (to name the VM) but must never write."""
     fake = fake_veeam()
     _wire(monkeypatch, restore_tools, fake)
     out = restore_tools.start_vm_restore(restore_point_id="rp1", dry_run=True)
     assert out["dryRun"] is True and out["wouldRestore"]["restore_point_id"] == "rp1"
-    assert fake.calls == []
+    assert fake.paths("POST") == []
     assert undo_recorder == []
 
 
@@ -473,7 +474,7 @@ def test_start_vm_restore_posts_restore_point_and_records_no_undo(
     _wire(monkeypatch, restore_tools, fake)
     out = restore_tools.start_vm_restore(restore_point_id="rp1")
     assert "error" not in out
-    method, path, kwargs = fake.calls[0]
+    method, path, kwargs = [c for c in fake.calls if c[0] == "POST"][0]
     assert (method, path) == ("POST", "/api/v1/restore/vm")
     assert kwargs["json"] == {"restorePointId": "rp1"}
     assert out["action"] == "vm_restore_started"

@@ -16,6 +16,7 @@ from veeam_aiops.cli._common import (
     double_confirm,
     dry_run_print,
     get_connection,
+    governed,
 )
 from veeam_aiops.ops import sessions
 
@@ -68,10 +69,14 @@ def session_stop(
 ) -> None:
     """Stop a running session (destructive — double confirm)."""
     if dry_run:
+        preview = governed(
+            gov.session_stop(session_id=session_id, dry_run=True, target=target)
+        )
         dry_run_print(
             operation="stop_session",
             api_call=f"POST /api/v1/sessions/{session_id}/stop",
+            parameters=preview.get("wouldStopSession", {}),
         )
         return
     double_confirm("stop", f"session {session_id}")
-    console.print_json(json.dumps(gov.session_stop(session_id=session_id, target=target)))
+    console.print_json(json.dumps(governed(gov.session_stop(session_id=session_id, target=target))))

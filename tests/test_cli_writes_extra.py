@@ -72,7 +72,11 @@ def test_cli_job_write_goes_through_governed_twin(
 
 
 @pytest.mark.unit
-def test_cli_session_stop_dry_run_no_call_no_audit(gov_home, monkeypatch, fake_veeam):
+def test_cli_session_stop_dry_run_writes_nothing_but_is_still_audited(
+    gov_home, monkeypatch, fake_veeam
+):
+    """A dry_run MAY read; it must never write. It is audited like any other
+    governed call — the MCP path always was, the CLI was the inconsistency."""
     import mcp_server.tools.sessions as gov_sessions
     from veeam_aiops.cli import app
 
@@ -82,8 +86,8 @@ def test_cli_session_stop_dry_run_no_call_no_audit(gov_home, monkeypatch, fake_v
     assert result.exit_code == 0, result.output
     assert "DRY-RUN" in result.output
     assert "/api/v1/sessions/sess-1/stop" in result.output
-    assert fake.calls == []
-    assert not (gov_home / "audit.db").exists()
+    assert fake.paths("POST") == [] and fake.paths("DELETE") == []
+    assert _audit_tools(gov_home / "audit.db") == ["session_stop"]
 
 
 @pytest.mark.unit
@@ -115,12 +119,21 @@ def test_cli_session_stop_aborts_without_second_confirm(gov_home, monkeypatch, f
 
 
 @pytest.mark.unit
-def test_cli_restore_start_dry_run_shows_param(gov_home, monkeypatch, fake_veeam):
-    """Dry-run preview exercises the _common.dry_run_print parameter loop."""
+def test_cli_restore_start_dry_run_names_the_vm_it_would_overwrite(
+    gov_home, monkeypatch, fake_veeam
+):
+    """Dry-run must show what a GUID actually is: nobody can approve an
+    irreversible in-place restore from an opaque id."""
     import mcp_server.tools.restore as gov_restore
     from veeam_aiops.cli import app
 
-    fake = fake_veeam()
+    fake = fake_veeam(
+        responses={
+            "/api/v1/restorePoints/rp-7": {"id": "rp-7", "name": "sql-01",
+                                           "creationTime": "2026-07-19T02:00:00Z"}
+        }
+    )
+    # The dry-run runs through the governed twin, so patch the twin's connection.
     monkeypatch.setattr(gov_restore, "_get_connection", lambda target=None: fake)
     result = runner.invoke(
         app, ["restore", "start", "--restore-point-id", "rp-7", "--dry-run"]
@@ -128,7 +141,9 @@ def test_cli_restore_start_dry_run_shows_param(gov_home, monkeypatch, fake_veeam
     assert result.exit_code == 0, result.output
     assert "DRY-RUN" in result.output
     assert "rp-7" in result.output  # the restorePointId parameter printed
-    assert fake.calls == []
+    assert "sql-01" in result.output  # ...and the VM it would overwrite
+    assert "2026-07-19" in result.output
+    assert fake.paths("POST") == []
 
 
 @pytest.mark.unit

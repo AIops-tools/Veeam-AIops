@@ -1,19 +1,51 @@
-# Release notes — veeam-aiops 0.5.1
+# Release notes — veeam-aiops 0.6.0
 
-Previous release: 0.5.0.
+Previous release: 0.5.1.
 
-## Removed: a dead token cache with a latent id-reuse hazard
+## In this tool
 
-`get_token()` and its module-level `_CONN_TOKEN` dict have been deleted. Nothing in
-the package read them — authentication has always used the `Authorization` header on
-the client — but the cache was keyed by `id(client)` and only cleared in `close()`.
-If `close()` was never called, the entry outlived its client, and CPython reuses
-object ids: a later client could have read a **different connection's** token. This is
-the same defect class that was fixed in another tool in this line, kept from biting
-here only by the absence of a caller.
+- **`start_vm_restore` refuses a restore point whose VM is the VBR server itself.** The payload carries no target mapping, so a restore is an in-place overwrite — and Veeam's own best practice is to back up the VBR server, which puts such a restore point in the very list this tool returns, unmarked. The match is on VM name against the configured host, which a display name may not equal: this is a safety net, not a proof, and the docstring says so.
+- The restore dry-run now resolves the restore point to a VM name and creation time. It previously echoed an opaque GUID, which meant the human asked to approve an irreversible overwrite had nothing real to approve.
+- **CLI writes now exit non-zero on a governed error.** A refused restore, a policy denial or an unreachable VBR previously printed the error and still exited 0, so a CI job read it as success.
 
-`close()` now clears the `Authorization` header before closing the client, and the
-tests assert the header — the mechanism that actually authenticates — instead of a
-side cache nothing consumed.
+## Every tool in the line: previews and undetermined outcomes
 
-No public API change: `get_token` was never exported in the documented surface.
+This release fixes three harness defects that were silently degrading the audit
+trail and the undo store.
+
+**A write that loses its response is no longer recorded as a failure.** The
+harness assumed a sanitized error meant nothing had happened. That assumption is
+false in exactly the case that matters most: when a write severs its own
+connection, the request has already landed, the response cannot come back, and
+the operation was recorded as `status=error` with **no undo token created at
+all**. Transport-level failures are now audited as `status=unknown`, the result
+says plainly that the operation may have taken effect and should be verified
+before retrying, and a write that stashed its before-state has its inverse
+recorded anyway — flagged `effectVerified: false`, which `undo_list` and
+`undo_apply` both surface. Existing `undo.db` files are migrated in place; their
+rows read as verified, which is accurate, since the old code only ever recorded
+on the confirmed path.
+
+**A dry-run no longer writes an undo token.** Previews were recording inverses
+built from a before-state they never had: the undo callback's permissive default
+filled the gap with a guess, producing a real, applicable token for an operation
+that never happened.
+
+**A dry-run no longer demands a named approver.** Requiring an approval in order
+to ask whether something needs approval inverts what a preview is for. The tier
+is still computed and still audited, so the preview can tell you an approver
+will be needed; it just no longer refuses to answer. The write itself is gated
+exactly as before.
+
+The invariant, now stated: **a dry_run may read; it must never write.** Guards
+run on the preview path, which means a preview can and does report that an
+operation would be refused.
+
+## Also line-wide
+
+- **Truncated text now ends in an ellipsis** instead of being cut silently. This
+  line already treats a silent cut as a defect for lists; it was doing exactly
+  that to strings.
+- **Error messages are capped at 800 characters, not 300.** These messages end
+  with what to do instead, so the cap was removing the most useful sentence of
+  every long refusal.

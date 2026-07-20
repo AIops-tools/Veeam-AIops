@@ -16,6 +16,7 @@ from veeam_aiops.cli._common import (
     double_confirm,
     dry_run_print,
     get_connection,
+    governed,
 )
 from veeam_aiops.ops import restore
 
@@ -47,15 +48,34 @@ def restore_start(
     target: TargetOption = None,
     dry_run: DryRunOption = False,
 ) -> None:
-    """Start a VM restore (IRREVERSIBLE — double confirm)."""
+    """Start a VM restore (IRREVERSIBLE — double confirm).
+
+    The dry-run resolves the restore point to the VM it would overwrite: a GUID
+    is not something a human can approve an irreversible restore on.
+    """
     if dry_run:
+        # Through the governed twin, not around it: that is what applies the
+        # self-target guard and the audit row to the preview as well.
+        result = governed(
+            gov.start_vm_restore(
+                restore_point_id=restore_point_id, dry_run=True, target=target
+            )
+        )
+        preview = result.get("wouldRestore", {})
+        unresolved = "(could not resolve — check the Veeam console before restoring)"
         dry_run_print(
             operation="start_vm_restore",
             api_call="POST /api/v1/restore/vm",
-            parameters={"restorePointId": restore_point_id},
+            parameters={
+                "restorePointId": restore_point_id,
+                "vmName": preview.get("vmName") or unresolved,
+                "creationTime": preview.get("creationTime") or unresolved,
+            },
         )
         return
     double_confirm("start VM restore (overwrites/creates a VM)", restore_point_id)
     console.print_json(
-        json.dumps(gov.start_vm_restore(restore_point_id=restore_point_id, target=target))
+        json.dumps(
+            governed(gov.start_vm_restore(restore_point_id=restore_point_id, target=target))
+        )
     )

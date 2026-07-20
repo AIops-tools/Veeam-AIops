@@ -23,11 +23,24 @@ def _default_approver(monkeypatch):
     monkeypatch.setenv("VEEAM_AUDIT_APPROVED_BY", "pytest")
 
 
-class FakeVeeam:
-    """Records every REST call; answers canned JSON per path-substring."""
+class FakeTarget:
+    """The slice of ``TargetConfig`` the ops layer reads (the VBR hostname)."""
 
-    def __init__(self, responses: dict[str, Any] | None = None) -> None:
+    def __init__(self, host: str = "") -> None:
+        self.host = host
+
+
+class FakeVeeam:
+    """Records every REST call; answers canned JSON per path-substring.
+
+    ``host`` sets the connection's target hostname. It defaults to empty, which
+    is what an unconfigured/unknown target looks like — guards that compare
+    against it must fail open there rather than matching a blank name.
+    """
+
+    def __init__(self, responses: dict[str, Any] | None = None, host: str = "") -> None:
         self.responses = responses or {}
+        self.target = FakeTarget(host)
         self.calls: list[tuple[str, str, dict]] = []  # (method, path, kwargs)
 
     def _match(self, path: str) -> Any:

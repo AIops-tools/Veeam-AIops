@@ -72,14 +72,31 @@ class TargetConfig:
     username: str
     port: int = 9419
     verify_ssl: bool = True
+    scheme: str = "https"
+    """Transport scheme — ``https`` (default) or ``http``.
+
+    Defaults to ``https``, so nothing changes for an existing config. It exists
+    because the URL was previously hardcoded to ``https://`` with no way to
+    override it, which made a plain-HTTP endpoint behind a reverse proxy simply
+    unreachable — with a TLS record-layer error as the only clue. Sibling tools
+    in this line take a free-form ``base_url``; the ones that CONSTRUCT their
+    URL are the ones that needed this knob.
+    """
 
     @property
     def password(self) -> str:
         return _resolve_secret(self.name)
 
+    def __post_init__(self) -> None:
+        if self.scheme not in ("https", "http"):
+            raise ValueError(
+                f"Target '{self.name}': scheme must be 'https' or 'http', "
+                f"got '{self.scheme}'."
+            )
+
     @property
     def base_url(self) -> str:
-        return f"https://{self.host}:{self.port}"
+        return f"{self.scheme}://{self.host}:{self.port}"
 
 
 @dataclass(frozen=True)
@@ -122,6 +139,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
             username=t["username"],
             port=t.get("port", 9419),
             verify_ssl=t.get("verify_ssl", True),
+            scheme=t.get("scheme", "https"),
         )
         for t in raw.get("targets", [])
     )

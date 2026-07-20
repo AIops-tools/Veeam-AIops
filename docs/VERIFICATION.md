@@ -52,7 +52,17 @@ veeam-aiops init      # encrypted secret store, TLS verify on by default
 - [ ] `veeam-aiops undo apply <id>` → the inverse executes as recorded.
 
 ### 4. Restore safety (the highest-risk path)
-- [ ] `restore start ... --dry-run` → prints the exact API call, changes nothing.
+- [ ] `restore start ... --dry-run` → prints the exact API call plus the **VM name
+      and creation time** behind the restore-point id, and changes nothing.
+- [ ] A restore point whose VM name equals the VBR host is **refused** before any
+      POST; a restore point for any other VM still runs. Confirm both — the guard
+      is worthless if it over-blocks and dangerous if it under-blocks.
+- [ ] `--dry-run` on that same restore point is refused too, and `--dry-run` on
+      any other one still prints its preview.
+- [ ] Every CLI write exits non-zero on a refusal or a policy denial (`echo $?`).
+- [ ] Every `--dry-run` leaves an audit row and changes nothing on the VBR server.
+- [ ] An unresolvable restore-point id still proceeds (fails open) and the preview
+      says `resolved: false` rather than showing a blank name.
 - [ ] A real restore into a **free** target records an undo; a forced overwrite
       correctly declares none and is tagged `high` risk.
 

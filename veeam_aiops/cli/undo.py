@@ -19,6 +19,7 @@ from veeam_aiops.cli._common import (
     console,
     double_confirm,
     dry_run_print,
+    governed,
 )
 
 undo_app = typer.Typer(
@@ -57,7 +58,7 @@ def undo_apply_cmd(
     from mcp_server.tools import undo as gov
 
     if dry_run:
-        preview = gov.undo_apply(undo_id=undo_id, dry_run=True, target=target)
+        preview = governed(gov.undo_apply(undo_id=undo_id, dry_run=True, target=target))
         dry_run_print(
             operation="undo_apply",
             api_call=f"inverse: {preview.get('wouldApply', {}).get('tool', '?')}",
@@ -65,4 +66,4 @@ def undo_apply_cmd(
         )
         return
     double_confirm("apply undo", undo_id)
-    console.print_json(json.dumps(gov.undo_apply(undo_id=undo_id, target=target)))
+    console.print_json(json.dumps(governed(gov.undo_apply(undo_id=undo_id, target=target))))

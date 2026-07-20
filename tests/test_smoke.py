@@ -193,7 +193,7 @@ def test_write_tool_records_undo_token_via_harness(monkeypatch):
     recorded = {}
 
     class _Store:
-        def record(self, *, skill, tool, undo_descriptor, orig_params):
+        def record(self, *, skill, tool, undo_descriptor, orig_params, effect_verified=True):
             recorded["descriptor"] = undo_descriptor
             recorded["tool"] = tool
             return "undo-123"

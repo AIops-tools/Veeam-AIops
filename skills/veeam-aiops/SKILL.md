@@ -22,7 +22,7 @@ compatibility: >
   Standalone, self-governed Veeam Backup & Replication operations. The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency.
   All write operations are audited to a local SQLite DB under ~/.veeam-aiops/ (relocatable via VEEAM_AIOPS_HOME).
   Credentials: Each Veeam target's login password is stored ENCRYPTED in ~/.veeam-aiops/secrets.enc (Fernet/AES-128 + scrypt-derived key) — never plaintext on disk. Run 'veeam-aiops init' to onboard, or 'veeam-aiops secret set <target>' to add one. The store is unlocked by a master password from VEEAM_AIOPS_MASTER_PASSWORD (non-interactive/MCP/CI) or an interactive prompt (CLI on a TTY). A legacy plaintext env var VEEAM_<TARGET_NAME_UPPER>_PASSWORD is still honoured as a fallback with a deprecation warning (migrate with 'veeam-aiops secret migrate'). The password is exchanged for a short-lived OAuth2 bearer token at connect time and held only in memory; passwords/tokens are never logged or echoed.
-  Destructive operations (job stop, session stop, restore start) require double confirmation at the CLI layer and support --dry-run. All write tools pass through the @governed_tool decorator (pre-check + budget guard + audit + risk-tier gate). Reversible writes (job start/stop/retry, enable/disable) record an inverse undo descriptor; session stop and the VM restore are irreversible and record none.
+  Destructive operations (job stop, session stop, restore start) require double confirmation at the CLI layer and support --dry-run. A dry_run MAY read (that is how it can tell you the call would be refused) but never writes, records no undo, and is audited like any other governed call; the CLI --dry-run routes through the same governed function as the MCP tool. All write tools pass through the @governed_tool decorator (pre-check + budget guard + audit + risk-tier gate). Reversible writes (job start/stop/retry, enable/disable) record an inverse undo descriptor; session stop and the VM restore are irreversible and record none.
   Webhooks: none — no outbound network calls beyond the configured Veeam REST API endpoint.
   SSL: verify_ssl defaults to true; disable only for self-signed lab certificates.
   Transitive dependencies: httpx (HTTP client) and the MCP SDK. No post-install scripts or background services.
@@ -95,8 +95,8 @@ veeam-aiops doctor
 ### Restore a VM from a restore point
 
 1. `veeam-aiops restore list-points` → identify the correct restore point id
-2. `veeam-aiops restore start --restore-point-id <id> --dry-run` → preview the exact API call
-3. `veeam-aiops restore start --restore-point-id <id>` → double confirmation required; this is IRREVERSIBLE (overwrites/creates a VM) and records no undo token
+2. `veeam-aiops restore start --restore-point-id <id> --dry-run` → preview the exact API call **and the VM name + creation time** the id resolves to — never approve a restore from a GUID
+3. `veeam-aiops restore start --restore-point-id <id>` → double confirmation required; this is IRREVERSIBLE (overwrites/creates a VM) and records no undo token. Refused outright if the VM name matches the configured VBR host (an in-place overwrite of the backup server itself) — a name-based safety net, not a proof, so confirm the target yourself
 4. **Failure branch**: if `doctor` shows the VBR server unreachable or the password env var is missing, fix `~/.veeam-aiops/.env` (chmod 600) before retrying — the restore is never issued against an unauthenticated session.
 
 ## Usage Mode

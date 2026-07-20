@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.6.0 — 2026-07-20
+
+### Fixed
+- **`start_vm_restore` refuses a restore point whose VM is the VBR server itself.** The payload carries no target mapping, so a restore is an in-place overwrite — and Veeam's own best practice is to back up the VBR server, which puts such a restore point in the very list this tool returns, unmarked.
+- The restore dry-run now resolves the restore point to a VM name and creation time.
+- **CLI writes now exit non-zero on a governed error.** A refused restore, a policy denial or an unreachable VBR previously printed the error and still exited 0, so a CI job read it as success..
+- Harness: a write whose response is lost is audited `status=unknown`, not `error` — it may have taken effect. Undo tokens gain `effectVerified` (undo.db migrated in place).
+- Harness: a dry-run no longer records an undo token, and no longer requires a named approver. Guards now run on the preview path.
+- Truncated strings end in an ellipsis instead of being cut silently; error messages are capped at 800 chars, not 300.
+
+See RELEASE_NOTES.md for the full detail.
+
 ## v0.4.0 — 2026-07-17
 
 ### Added

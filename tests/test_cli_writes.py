@@ -40,7 +40,13 @@ def _audit_tools(db_path) -> list[str]:
 
 
 @pytest.mark.unit
-def test_cli_job_stop_dry_run_makes_no_call_and_no_audit(gov_home, monkeypatch, fake_veeam):
+def test_cli_job_stop_dry_run_writes_nothing_but_is_still_audited(
+    gov_home, monkeypatch, fake_veeam
+):
+    """The invariant is "a dry_run MAY read; it must never write" — not "zero
+    I/O". A preview that cannot read cannot answer "would this be refused?", and
+    the CLI not auditing its previews was the outlier: the MCP path already
+    audits them, because @governed_tool wraps the tool regardless of dry_run."""
     import mcp_server.tools.jobs as gov_jobs
     from veeam_aiops.cli import app
 
@@ -49,8 +55,8 @@ def test_cli_job_stop_dry_run_makes_no_call_and_no_audit(gov_home, monkeypatch, 
     result = CliRunner().invoke(app, ["job", "stop", "job-1", "--dry-run"])
     assert result.exit_code == 0
     assert "DRY-RUN" in result.output
-    assert fake.calls == []
-    assert not (gov_home / "audit.db").exists()
+    assert fake.paths("POST") == [] and fake.paths("DELETE") == []
+    assert _audit_tools(gov_home / "audit.db") == ["job_stop"]
 
 
 @pytest.mark.unit

@@ -58,6 +58,22 @@ def get_connection(target: str | None, config_path: Path | None = None) -> tuple
     return mgr.connect(target), cfg
 
 
+def governed(result: Any) -> dict:
+    """Return a governed tool's result, or print its error and exit 1.
+
+    The ``mcp_server.tools`` twins never raise: ``@tool_errors`` flattens every
+    failure — a refused self-target, a policy denial, an unreachable VBR — into
+    ``{"error": ...}``. Printing that dict makes it visible to a human but still
+    exits 0, so a CI job or a shell ``&&`` chain reads a refused restore as a
+    successful one. These are the most destructive writes in the line; a silent
+    failure here is the worst kind. Route every governed call through this.
+    """
+    if isinstance(result, dict) and result.get("error"):
+        console.print(f"[red]Error: {result['error']}[/]")
+        raise typer.Exit(1)
+    return result if isinstance(result, dict) else {}
+
+
 def dry_run_print(*, operation: str, api_call: str, parameters: dict | None = None) -> None:
     """Print a dry-run preview of the API call that would be made."""
     console.print("\n[bold magenta][DRY-RUN] No changes will be made.[/]")

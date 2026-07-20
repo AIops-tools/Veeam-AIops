@@ -50,8 +50,35 @@ capture the job's prior status/lastResult for context.
 | `start_vm_restore` | W | high | **none — irreversible** | ~40 |
 
 REST endpoints: `GET /api/v1/restorePoints` (optional `backupIdFilter`),
+`GET /api/v1/restorePoints/{id}` (to name what a restore would overwrite),
 `POST /api/v1/restore/vm`. `start_vm_restore` is a documented skeleton: the
 exact restore endpoint and payload vary by restore type and Veeam version.
+
+The payload carries **no target mapping**, so it is a restore-to-original — an
+in-place overwrite. Two consequences worth knowing before you call it:
+
+- `dry_run=True` resolves the opaque restore-point id to the **VM name and
+  creation time** it would overwrite. `resolved: false` means it could not be
+  read; the restore still proceeds, so treat that as a reason to check the
+  console, not as reassurance.
+- It **refuses** when that VM name matches the configured VBR host — **on the
+  dry-run as well as the real call**, with identical fail-open behaviour. A
+  preview that returns green for a call that will then be refused is a preview
+  reporting the wrong outcome. Veeam's own
+  guidance is to back up the VBR server itself, so its restore point sits in the
+  same list as every other one with nothing marking it as special. **This check
+  is a safety net, not a proof**: a VM display name is not a hostname, so a VBR
+  server whose VM is named `Backup Server 01` is not caught, and it fails open
+  when the restore point cannot be resolved.
+
+### Dry-run semantics (line-wide)
+
+`dry_run=True` returns `{"dryRun": true, "would...": {...}}`. A dry-run **may read** —
+resolving ids and evaluating guards is exactly what lets it answer "would this be
+refused?" — but it **never writes** and records **no undo**. It runs through
+`@governed_tool` like any other call, so it is audited and it can be refused. The CLI
+`--dry-run` routes through the same governed function, so both entry points behave
+identically.
 
 ## Repositories (3 — read)
 
