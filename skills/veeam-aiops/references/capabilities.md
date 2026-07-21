@@ -138,7 +138,7 @@ re-issuing the originating operation; read `session_log` to see *why* one failed
 Generic governance tools provided by the bundled harness, not the Veeam REST
 API. `undo_list` lists the recorded reversible writes whose undo tokens have not
 yet been applied. `undo_apply` executes a recorded inverse for one token — it is
-itself governed (audited, policy- and budget-checked), single-use (a token
+itself governed (audited and budget-checked), single-use (a token
 cannot be replayed), and supports `dry_run` to preview the inverse first.
 
 ## Harness behavior
@@ -151,6 +151,7 @@ cannot be replayed), and supports `dry_run` to preview the inverse first.
   (`_undo_id` on the result); `session_stop` and the high-risk restore record none.
 - **Budget/runaway guard**: caps cumulative calls + wall-time and trips tight
   session-poll loops.
-- **Risk tiers**: `~/.veeam-aiops/rules.yaml` can require a recorded approver
-  for high-tier writes.
+- **Risk tier**: a descriptive label on each audit row derived from `risk_level`;
+  it gates nothing. `VEEAM_AUDIT_APPROVED_BY` / `VEEAM_AUDIT_RATIONALE` are
+  optional annotations recorded on the audit row, never required.
 - **Sanitize**: all API-returned text is truncated + control-char stripped.

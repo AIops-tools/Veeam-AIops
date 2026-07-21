@@ -16,11 +16,13 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _default_approver(monkeypatch):
-    """The policy layer is secure-by-default: with no rules.yaml, high/critical
-    governed calls require a named approver. Tests exercising tool behavior
-    are not about that gate, so record a synthetic approver globally; the
-    governance-persistence tests remove it to test the gate itself."""
+    """The approver is an optional audit annotation now, not a gate: record a
+    synthetic one globally so audit rows carry a who; the governance-persistence
+    tests remove it to prove a high-risk write runs without one."""
     monkeypatch.setenv("VEEAM_AUDIT_APPROVED_BY", "pytest")
+
+
+READ_METHODS = ("GET", "HEAD", "OPTIONS")
 
 
 class FakeTarget:
@@ -68,6 +70,17 @@ class FakeVeeam:
     # ── assertion helpers ────────────────────────────────────────────
     def paths(self, method: str | None = None) -> list[str]:
         return [p for (m, p, _k) in self.calls if method is None or m == method]
+
+    def mutating(self) -> list[str]:
+        """Every recorded call that could change server state.
+
+        Used to assert the one rule a dry-run must obey: it MAY read (a preview
+        that cannot read cannot say whether the real call would be refused), it
+        must never write. An allowlist of read verbs rather than a denylist of
+        POST/PUT/PATCH/DELETE, so a verb this fake learns later counts as
+        mutating until someone deliberately decides otherwise.
+        """
+        return [f"{m} {p}" for (m, p, _k) in self.calls if m not in READ_METHODS]
 
 
 @pytest.fixture

@@ -59,16 +59,18 @@ veeam-aiops init      # encrypted secret store, TLS verify on by default
       is worthless if it over-blocks and dangerous if it under-blocks.
 - [ ] `--dry-run` on that same restore point is refused too, and `--dry-run` on
       any other one still prints its preview.
-- [ ] Every CLI write exits non-zero on a refusal or a policy denial (`echo $?`).
+- [ ] Every CLI write exits non-zero on a refusal or an aborted confirmation (`echo $?`).
 - [ ] Every `--dry-run` leaves an audit row and changes nothing on the VBR server.
 - [ ] An unresolvable restore-point id still proceeds (fails open) and the preview
       says `resolved: false` rather than showing a blank name.
 - [ ] A real restore into a **free** target records an undo; a forced overwrite
       correctly declares none and is tagged `high` risk.
 
-### 5. Governance actually gates
-- [ ] With no `rules.yaml`, a `high`-risk op is refused unless
-      `VEEAM_AUDIT_APPROVED_BY` names an approver (secure-by-default).
+### 5. Governance records (it does not gate)
+- [ ] A `high`-risk op runs with no approver set and still lands an audit row
+      whose `risk_tier` is the descriptive label `review` — it gates nothing.
+- [ ] `VEEAM_AUDIT_APPROVED_BY` / `VEEAM_AUDIT_RATIONALE`, when set, appear on the
+      audit row as annotations and never change whether the call runs.
 
 ### 6. Cleanup
 - [ ] Remove any test restore point / job created during verification.

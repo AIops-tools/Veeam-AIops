@@ -23,10 +23,18 @@ DryRunOption = Annotated[
 
 
 def _cli_error_types() -> tuple[type[BaseException], ...]:
-    """Exceptions translated to a one-line teaching error instead of a traceback."""
-    from veeam_aiops.connection import VeeamApiError
+    """Exceptions translated to a one-line teaching error instead of a traceback.
 
-    return (VeeamApiError, KeyError, OSError, ValueError)
+    ``BudgetExceeded`` (and the retained ``PolicyDenied`` type) are raised by
+    ``@governed_tool`` OUTSIDE the tool body, so ``tool_errors`` never sees them
+    and they never arrive as an ``{"error": ...}`` dict. Their message is the
+    teaching text (e.g. which budget was hit) — without them here such a refusal
+    reaches the CLI as a traceback instead.
+    """
+    from veeam_aiops.connection import VeeamApiError
+    from veeam_aiops.governance import BudgetExceeded, PolicyDenied
+
+    return (VeeamApiError, PolicyDenied, BudgetExceeded, KeyError, OSError, ValueError)
 
 
 def cli_errors(fn: Callable) -> Callable:
@@ -61,12 +69,17 @@ def get_connection(target: str | None, config_path: Path | None = None) -> tuple
 def governed(result: Any) -> dict:
     """Return a governed tool's result, or print its error and exit 1.
 
-    The ``mcp_server.tools`` twins never raise: ``@tool_errors`` flattens every
-    failure — a refused self-target, a policy denial, an unreachable VBR — into
-    ``{"error": ...}``. Printing that dict makes it visible to a human but still
-    exits 0, so a CI job or a shell ``&&`` chain reads a refused restore as a
-    successful one. These are the most destructive writes in the line; a silent
-    failure here is the worst kind. Route every governed call through this.
+    ``@tool_errors`` flattens failures raised by the tool BODY — a refused
+    self-target, an unreachable VBR — into ``{"error": ...}``. Printing that
+    dict makes it visible to a human but still exits 0, so a CI job or a shell
+    ``&&`` chain reads a refused restore as a successful one. These are the
+    most destructive writes in the line; a silent failure here is the worst
+    kind. Route every governed call through this.
+
+    Note the twins are NOT exception-free, despite what this helper's shape
+    suggests: a budget or runaway stop is raised by ``@governed_tool``, which
+    sits OUTSIDE ``@tool_errors``, so it stays an exception and never reaches
+    here. ``cli_errors`` catches those — see ``_cli_error_types``.
     """
     if isinstance(result, dict) and result.get("error"):
         console.print(f"[red]Error: {result['error']}[/]")

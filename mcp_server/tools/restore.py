@@ -2,9 +2,10 @@
 
 start_vm_restore is high-risk with NO undo token — restoring a VM overwrites
 or creates one and cannot be reversed by the harness. Its dry-run resolves the
-opaque restore-point id to the VM name and creation time, because an approver
-gating an irreversible overwrite cannot judge a GUID; and it refuses outright
-when that VM name matches the configured VBR host (see ops.restore).
+opaque restore-point id to the VM name and creation time, because a bare GUID
+gives whoever authorises an irreversible overwrite nothing to judge; and it
+refuses outright when that VM name matches the configured VBR host (see
+ops.restore).
 """
 
 from typing import Optional

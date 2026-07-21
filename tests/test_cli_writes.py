@@ -74,6 +74,27 @@ def test_cli_job_stop_confirmed_goes_through_governance(gov_home, monkeypatch, f
     assert _audit_tools(gov_home / "audit.db") == ["job_stop"]
 
 
+# ─── an ordinary preview renders the human-readable banner ───────────────────
+
+
+@pytest.mark.unit
+def test_cli_job_stop_dry_run_renders_the_banner_when_permitted(
+    gov_home, monkeypatch, fake_veeam
+):
+    """Control: an ordinary preview still renders the human-readable banner."""
+    import mcp_server.tools.jobs as gov_jobs
+    from veeam_aiops.cli import app
+
+    fake = fake_veeam()
+    monkeypatch.setattr(gov_jobs, "_get_connection", lambda target=None: fake)
+    result = CliRunner().invoke(app, ["job", "stop", "job-1", "--dry-run"])
+    assert result.exit_code == 0, result.output
+    assert "DRY-RUN" in result.output
+    assert "job-1" in result.output
+    # Rendered for a human, not dumped as JSON at one.
+    assert "{" not in result.output
+
+
 @pytest.mark.unit
 def test_cli_job_stop_aborts_without_double_confirm(gov_home, monkeypatch, fake_veeam):
     import mcp_server.tools.jobs as gov_jobs

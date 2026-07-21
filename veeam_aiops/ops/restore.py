@@ -133,10 +133,9 @@ def _refuse_if_self_restore(conn: Any, restore_point_id: str, vm_name: str | Non
 def preview_vm_restore(conn: Any, restore_point_id: str) -> dict:
     """[READ] Resolve what a VM restore would overwrite, for the dry-run preview.
 
-    A restore is irreversible and gated on a named approver, so the preview has
-    to show the approver something they can judge — a bare restore-point GUID is
-    not that. Resolves the id to the VM display name and the point's creation
-    time.
+    A restore is irreversible, so the preview has to show whoever authorises it
+    something they can judge — a bare restore-point GUID is not that. Resolves
+    the id to the VM display name and the point's creation time.
 
     **Refuses exactly what the real restore refuses** (:class:`SelfLockout`),
     with identical fail-open behaviour, rather than reporting the match as a

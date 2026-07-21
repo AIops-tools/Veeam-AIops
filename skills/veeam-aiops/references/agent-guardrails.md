@@ -9,18 +9,33 @@ the tool now enforces them itself.
 The distinction matters. A guardrail in a prompt is a request. A guardrail in the
 harness is a guarantee. Anything below that we could move into the harness, we did.
 
-## What the tool now enforces — do not waste prompt budget on these
+## Authorization is not this tool's job — decide it where it belongs
+
+Whether a write should happen is your decision, or the account's. The tool does
+not gate it — there is no read-only switch and no approval prompt to configure.
+The two right places to control read vs write:
+
+- **The account you connect with.** Give the Veeam account you connect with a
+  read-only or restricted role on the VBR server. A write then fails at the
+  server, which is the only place the permission actually lives — a revoked
+  permission cannot be argued around by a model, but a skill-side flag can.
+- **Your agent's system prompt.** If you want an observe-only session, tell the
+  model not to call the write tools (they are clearly tagged `[WRITE]`).
+
+What the tool *does* guarantee is that you can always see what happened:
+
+## What the tool enforces — do not waste prompt budget on these
 
 | You might be tempted to prompt | Why you don't need to |
 |---|---|
-| "Work read-only, never start/stop a job or restore anything" | Set `VEEAM_READ_ONLY=1`. The 8 write tools (`job_start`, `job_stop`, `job_retry`, `job_enable`, `job_disable`, `session_stop`, `start_vm_restore`, `undo_apply`) are then **not registered at all** — they never appear in the tool list, so the model cannot call one even if it tries. The `@governed_tool` harness independently refuses writes, so the CLI is covered too. 17 read tools remain. |
 | "Don't invent a value when a field is missing" | A field the VBR API did not return comes back as `null`, never as `""`. A job with no `lastResult` yet, a session with no verdict, a proxy with no reported host — all report `null`, and only a genuinely empty upstream value comes back as `""`. Absent and empty are distinguishable in the payload. |
 | "Tell me if the output was cut off" | `undo_list` — the one read with a server-side cap — returns `{"undos": [...], "returned": N, "limit": L, "truncated": true/false}`. Truncation is measured (one extra row is fetched), not guessed from a length coincidence. Every other read returns everything VBR returned for that collection; nothing is silently trimmed behind your back. |
 | "Preserve the ordering / tell me what's most urgent" | `job_failure_rca` and `repository_capacity_rca` findings carry an explicit 1-based `rank`, worst-first. Priority is in the payload, not implied by list position. |
 | "Explain why you flagged that repository / job" | Every finding carries the measured signal that tripped it — the session `result` and the matched error substring, or the free-space percentage against the threshold — plus a concrete `cause` and `action`. The heuristics are transparent, not a verdict. |
-| "Confirm before anything destructive" | `job_stop`, `session_stop` and `restore start` require a `--dry-run`-able preview plus double confirmation at the CLI; the MCP write tools take `dry_run=True`. `start_vm_restore` is tagged `high` risk and needs a named approver (`VEEAM_AUDIT_APPROVED_BY`). |
+| "Confirm before anything destructive" | `job_stop`, `session_stop` and `restore start` require a `--dry-run`-able preview plus double confirmation at the CLI; the MCP write tools take `dry_run=True`. `start_vm_restore` is tagged `high` risk. |
 | "Remember how to put it back" | Writes with a clean inverse (`job_start`/`job_stop`, `job_enable`/`job_disable`, `job_retry`) record an undo token — list them with `undo_list`, replay with `undo_apply`. The irreversible ones (`start_vm_restore`, `session_stop`) record none and say so. |
-| "Log what you did" | Every governed call is audited to `~/.veeam-aiops/audit.db` regardless of what the model says it did. |
+| "Log what you did" | Every governed call is audited to `~/.veeam-aiops/audit.db` regardless of what the model says it did — and the CLI writes the same row the MCP path does, so there is no unaudited entry point. |
+| "Don't get stuck retrying" | The runaway guard trips a circuit breaker if the same call is hammered in a tight loop (e.g. re-issuing a job instead of polling its session) — a stuck agent is stopped rather than left to burn calls and time. |
 
 ## What still needs a prompt
 
@@ -65,17 +80,20 @@ SCOPE
 
 ## Recommended setup for a local model
 
+Start with a connection that *cannot* write, verify, and widen the account's
+permission only when you trust the setup — a restore or a stopped job on the
+wrong target is not something you want a smaller model reaching for on day one:
+
 ```bash
-# Read-only until you trust the setup — this is enforced, not advisory.
-export VEEAM_READ_ONLY=1
+# e.g. connect with a Veeam account that has a read-only or restricted role on
+# the VBR server. Then:
 veeam-aiops doctor
 ```
 
-Then, when you are ready to allow writes, unset it and set an approver so the
-high-risk tier has an accountable name on it:
+Optionally annotate the audit trail with who is operating and why — recorded on
+every row, never required:
 
 ```bash
-unset VEEAM_READ_ONLY
 export VEEAM_AUDIT_APPROVED_BY="your.name@example.com"
 export VEEAM_AUDIT_RATIONALE="scheduled maintenance window 2026-07-20"
 ```
@@ -102,8 +120,8 @@ and what to do about them:
 - **A disabled job is not a failing job.** `job_list` reports `isDisabled`
   separately from `lastResult`; a disabled job simply has not run.
 - **`start_vm_restore` cannot be undone.** It overwrites or creates a VM and
-  records no undo token. It is `high` risk deliberately — leave the approver gate
-  on. It is also a documented skeleton: the exact endpoint and payload differ per
+  records no undo token. It is `high` risk deliberately. It is also a documented
+  skeleton: the exact endpoint and payload differ per
   restore type (instant recovery vs full restore vs restore-to-new-location) and
   per Veeam version, so validate it against your environment before trusting it.
 - **Always read the `dry_run` preview before approving a restore.** It names the

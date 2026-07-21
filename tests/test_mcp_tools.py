@@ -3,12 +3,15 @@
 Every tool is invoked through a mocked connection (``FakeVeeam`` in conftest —
 records each outbound call, answers canned JSON per path-substring) and the
 tests assert the real API contract: the endpoint path + params that leave the
-tool. Writes are additionally checked for dry-run behavior (no API call, a
-``dryRun`` preview, no undo recorded), risk tier, and — where undo exists —
-that the inverse descriptor / prior state is captured, not guessed.
+tool. Writes are additionally checked for dry-run behavior (a ``dryRun``
+preview that writes nothing, is audited, and records no undo), risk tier, and
+— where undo exists — that the inverse descriptor / prior state is captured,
+not guessed.
 """
 
 from __future__ import annotations
+
+import sqlite3
 
 import pytest
 
@@ -53,6 +56,31 @@ def undo_recorder(monkeypatch):
 
 def _wire(monkeypatch, module, fake) -> None:
     monkeypatch.setattr(module, "_get_connection", lambda target=None: fake)
+
+
+def _audit_tools(home) -> list[str]:
+    db = home / "audit.db"
+    if not db.exists():
+        return []
+    conn = sqlite3.connect(db)
+    try:
+        return [r[0] for r in conn.execute("SELECT tool FROM audit_log ORDER BY id")]
+    finally:
+        conn.close()
+
+
+def _assert_preview_was_governed(fake, home, tool_name, undo_recorder) -> None:
+    """The rule a preview must obey: it MAY read, it must never write.
+
+    Not "makes no API call" — a preview that cannot read cannot answer "would
+    this be refused?", which is the whole point of asking. And it is audited
+    like any other governed call: @governed_tool wraps the tool regardless of
+    the dry_run argument, so asking counts as an event worth a row.
+    """
+    assert fake.mutating() == []
+    assert _audit_tools(home) == [tool_name]
+    # Still true, and deliberately so: a preview has no before-state to invert.
+    assert undo_recorder == []
 
 
 # ─── risk tiers of the write tools ───────────────────────────────────────────
@@ -160,13 +188,14 @@ def test_job_get_url_encodes_hostile_id(monkeypatch, fake_veeam):
 
 
 @pytest.mark.unit
-def test_job_start_dry_run_makes_no_api_call(monkeypatch, fake_veeam, undo_recorder):
+def test_job_start_dry_run_never_writes_and_is_audited(
+    monkeypatch, fake_veeam, undo_recorder, tmp_path
+):
     fake = fake_veeam()
     _wire(monkeypatch, jobs_tools, fake)
     out = jobs_tools.job_start(job_id="j1", dry_run=True)
     assert out["dryRun"] is True and out["wouldStart"]["job_id"] == "j1"
-    assert fake.calls == []
-    assert undo_recorder == []  # a preview must not record an undo
+    _assert_preview_was_governed(fake, tmp_path, "job_start", undo_recorder)
 
 
 @pytest.mark.unit
@@ -187,13 +216,14 @@ def test_job_start_posts_and_records_stop_inverse(monkeypatch, fake_veeam, undo_
 
 
 @pytest.mark.unit
-def test_job_stop_dry_run_makes_no_api_call(monkeypatch, fake_veeam, undo_recorder):
+def test_job_stop_dry_run_never_writes_and_is_audited(
+    monkeypatch, fake_veeam, undo_recorder, tmp_path
+):
     fake = fake_veeam()
     _wire(monkeypatch, jobs_tools, fake)
     out = jobs_tools.job_stop(job_id="j1", dry_run=True)
     assert out["dryRun"] is True and out["wouldStop"]["job_id"] == "j1"
-    assert fake.calls == []
-    assert undo_recorder == []
+    _assert_preview_was_governed(fake, tmp_path, "job_stop", undo_recorder)
 
 
 @pytest.mark.unit
@@ -224,12 +254,14 @@ def test_job_retry_posts_and_records_stop_inverse(monkeypatch, fake_veeam, undo_
 
 
 @pytest.mark.unit
-def test_job_retry_dry_run_makes_no_api_call(monkeypatch, fake_veeam, undo_recorder):
+def test_job_retry_dry_run_never_writes_and_is_audited(
+    monkeypatch, fake_veeam, undo_recorder, tmp_path
+):
     fake = fake_veeam()
     _wire(monkeypatch, jobs_tools, fake)
     out = jobs_tools.job_retry(job_id="j1", dry_run=True)
     assert out["dryRun"] is True and out["wouldRetry"]["job_id"] == "j1"
-    assert fake.calls == [] and undo_recorder == []
+    _assert_preview_was_governed(fake, tmp_path, "job_retry", undo_recorder)
 
 
 @pytest.mark.unit
@@ -244,12 +276,14 @@ def test_job_enable_posts_and_records_disable_inverse(monkeypatch, fake_veeam, u
 
 
 @pytest.mark.unit
-def test_job_enable_dry_run_makes_no_api_call(monkeypatch, fake_veeam, undo_recorder):
+def test_job_enable_dry_run_never_writes_and_is_audited(
+    monkeypatch, fake_veeam, undo_recorder, tmp_path
+):
     fake = fake_veeam()
     _wire(monkeypatch, jobs_tools, fake)
     out = jobs_tools.job_enable(job_id="j1", dry_run=True)
     assert out["dryRun"] is True and out["wouldEnable"]["job_id"] == "j1"
-    assert fake.calls == [] and undo_recorder == []
+    _assert_preview_was_governed(fake, tmp_path, "job_enable", undo_recorder)
 
 
 @pytest.mark.unit
@@ -264,12 +298,14 @@ def test_job_disable_posts_and_records_enable_inverse(monkeypatch, fake_veeam, u
 
 
 @pytest.mark.unit
-def test_job_disable_dry_run_makes_no_api_call(monkeypatch, fake_veeam, undo_recorder):
+def test_job_disable_dry_run_never_writes_and_is_audited(
+    monkeypatch, fake_veeam, undo_recorder, tmp_path
+):
     fake = fake_veeam()
     _wire(monkeypatch, jobs_tools, fake)
     out = jobs_tools.job_disable(job_id="j1", dry_run=True)
     assert out["dryRun"] is True and out["wouldDisable"]["job_id"] == "j1"
-    assert fake.calls == [] and undo_recorder == []
+    _assert_preview_was_governed(fake, tmp_path, "job_disable", undo_recorder)
 
 
 # ─── sessions ────────────────────────────────────────────────────────────────
@@ -322,16 +358,21 @@ def test_session_log_hits_logs_endpoint(monkeypatch, fake_veeam):
 
 
 @pytest.mark.unit
-def test_session_stop_dry_run_and_real_post(monkeypatch, fake_veeam):
+def test_session_stop_dry_run_never_writes_then_real_call_does(
+    monkeypatch, fake_veeam, tmp_path
+):
+    """Both calls are audited; only the second one is allowed to write."""
     fake = fake_veeam()
     _wire(monkeypatch, sessions_tools, fake)
     preview = sessions_tools.session_stop(session_id="s1", dry_run=True)
     assert preview["dryRun"] is True and preview["wouldStopSession"]["session_id"] == "s1"
-    assert fake.calls == []
+    assert fake.mutating() == []
+    assert _audit_tools(tmp_path) == ["session_stop"]
 
     out = sessions_tools.session_stop(session_id="s1")
     assert "error" not in out
     assert fake.paths("POST") == ["/api/v1/sessions/s1/stop"]
+    assert _audit_tools(tmp_path) == ["session_stop", "session_stop"]
 
 
 @pytest.mark.unit
@@ -456,14 +497,17 @@ def test_restore_list_points_passes_backup_filter_as_query_param(monkeypatch, fa
 
 
 @pytest.mark.unit
-def test_start_vm_restore_dry_run_makes_no_write_call(monkeypatch, fake_veeam, undo_recorder):
-    """The preview reads (to name the VM) but must never write."""
+def test_start_vm_restore_dry_run_never_writes_and_is_audited(
+    monkeypatch, fake_veeam, undo_recorder, tmp_path
+):
+    """This is the preview that proves the rule: it MUST read to name the VM
+    behind the GUID, and it must still never write."""
     fake = fake_veeam()
     _wire(monkeypatch, restore_tools, fake)
     out = restore_tools.start_vm_restore(restore_point_id="rp1", dry_run=True)
     assert out["dryRun"] is True and out["wouldRestore"]["restore_point_id"] == "rp1"
-    assert fake.paths("POST") == []
-    assert undo_recorder == []
+    assert fake.paths("GET"), "the preview is expected to read, and does"
+    _assert_preview_was_governed(fake, tmp_path, "start_vm_restore", undo_recorder)
 
 
 @pytest.mark.unit

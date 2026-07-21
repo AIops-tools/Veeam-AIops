@@ -1,10 +1,10 @@
 """Backup job MCP tools: list/get, start/stop, enable/disable.
 
 Every tool is wrapped with ``@governed_tool`` (the veeam-aiops harness):
-policy pre-check, budget/runaway guard, graduated-autonomy risk-tier gate,
-audit logging to ~/.veeam-aiops/audit.db, and undo-token recording. Write tools
-with a clean inverse pass an ``undo=`` lambda so the harness records a reversal
-descriptor to the undo store (start↔stop, enable↔disable).
+budget/runaway guard, audit logging to ~/.veeam-aiops/audit.db with a
+descriptive risk tier, and undo-token recording. Write tools with a clean
+inverse pass an ``undo=`` lambda so the harness records a reversal descriptor
+to the undo store (start↔stop, enable↔disable).
 """
 
 from typing import Optional

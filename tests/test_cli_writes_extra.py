@@ -143,7 +143,11 @@ def test_cli_restore_start_dry_run_names_the_vm_it_would_overwrite(
     assert "rp-7" in result.output  # the restorePointId parameter printed
     assert "sql-01" in result.output  # ...and the VM it would overwrite
     assert "2026-07-19" in result.output
-    assert fake.paths("POST") == []
+    # It reads (that is how it resolved the name) but writes nothing, and is
+    # audited like any other governed call.
+    assert fake.mutating() == []
+    assert fake.paths("GET"), "the preview is expected to read, and does"
+    assert _audit_tools(gov_home / "audit.db") == ["start_vm_restore"]
 
 
 @pytest.mark.unit

@@ -2,7 +2,7 @@
 
 Real execution is delegated to the ``@governed_tool``-wrapped functions in
 ``mcp_server.tools.undo`` so an applied undo is audited on the SAME governance
-path as any other write (the inverse tool it dispatches is itself re-gated).
+path as any other write (the inverse tool it dispatches is itself governed).
 """
 
 from __future__ import annotations
