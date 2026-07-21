@@ -68,6 +68,38 @@ def test_cli_job_write_goes_through_governed_twin(
     assert _audit_tools(gov_home / "audit.db") == [tool]
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "cmd, tool",
+    [
+        ("start", "job_start"),
+        ("retry", "job_retry"),
+        ("enable", "job_enable"),
+        ("disable", "job_disable"),
+    ],
+)
+def test_cli_job_write_dry_run_writes_nothing_but_is_still_audited(
+    gov_home, monkeypatch, fake_veeam, cmd, tool
+):
+    """``job start/retry/enable/disable --dry-run`` now route through the twin.
+
+    The invariant is "a dry_run MAY read; it must never write" — these previews
+    were the same-tier siblings of ``job stop`` but had no ``--dry-run`` flag at
+    all. Now they render the human banner AND land an audit row (the MCP path
+    always did), while issuing no mutating REST call."""
+    import mcp_server.tools.jobs as gov_jobs
+    from veeam_aiops.cli import app
+
+    fake = fake_veeam()
+    monkeypatch.setattr(gov_jobs, "_get_connection", lambda target=None: fake)
+    result = runner.invoke(app, ["job", cmd, "job-1", "--dry-run"])
+    assert result.exit_code == 0, result.output
+    assert "DRY-RUN" in result.output
+    assert "job-1" in result.output
+    assert fake.mutating() == []  # the one thing a dry-run may never do
+    assert _audit_tools(gov_home / "audit.db") == [tool]
+
+
 # ─── session stop: dry-run vs confirmed ──────────────────────────────────────
 
 

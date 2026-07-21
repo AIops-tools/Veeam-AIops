@@ -49,15 +49,35 @@ def job_get(job_id: str, target: TargetOption = None) -> None:
 
 @job_app.command("start")
 @cli_errors
-def job_start(job_id: str, target: TargetOption = None) -> None:
+def job_start(
+    job_id: str, target: TargetOption = None, dry_run: DryRunOption = False
+) -> None:
     """Start a backup job."""
+    if dry_run:
+        preview = governed(gov.job_start(job_id=job_id, dry_run=True, target=target))
+        dry_run_print(
+            operation="start_job",
+            api_call=f"POST /api/v1/jobs/{job_id}/start",
+            parameters=preview.get("wouldStart", {}),
+        )
+        return
     console.print_json(json.dumps(governed(gov.job_start(job_id=job_id, target=target))))
 
 
 @job_app.command("retry")
 @cli_errors
-def job_retry(job_id: str, target: TargetOption = None) -> None:
+def job_retry(
+    job_id: str, target: TargetOption = None, dry_run: DryRunOption = False
+) -> None:
     """Retry a failed backup job (re-runs failed objects only)."""
+    if dry_run:
+        preview = governed(gov.job_retry(job_id=job_id, dry_run=True, target=target))
+        dry_run_print(
+            operation="retry_job",
+            api_call=f"POST /api/v1/jobs/{job_id}/retry",
+            parameters=preview.get("wouldRetry", {}),
+        )
+        return
     console.print_json(json.dumps(governed(gov.job_retry(job_id=job_id, target=target))))
 
 
@@ -81,13 +101,33 @@ def job_stop(
 
 @job_app.command("enable")
 @cli_errors
-def job_enable(job_id: str, target: TargetOption = None) -> None:
+def job_enable(
+    job_id: str, target: TargetOption = None, dry_run: DryRunOption = False
+) -> None:
     """Enable a backup job."""
+    if dry_run:
+        preview = governed(gov.job_enable(job_id=job_id, dry_run=True, target=target))
+        dry_run_print(
+            operation="enable_job",
+            api_call=f"POST /api/v1/jobs/{job_id}/enable",
+            parameters=preview.get("wouldEnable", {}),
+        )
+        return
     console.print_json(json.dumps(governed(gov.job_enable(job_id=job_id, target=target))))
 
 
 @job_app.command("disable")
 @cli_errors
-def job_disable(job_id: str, target: TargetOption = None) -> None:
+def job_disable(
+    job_id: str, target: TargetOption = None, dry_run: DryRunOption = False
+) -> None:
     """Disable a backup job (skips scheduled runs)."""
+    if dry_run:
+        preview = governed(gov.job_disable(job_id=job_id, dry_run=True, target=target))
+        dry_run_print(
+            operation="disable_job",
+            api_call=f"POST /api/v1/jobs/{job_id}/disable",
+            parameters=preview.get("wouldDisable", {}),
+        )
+        return
     console.print_json(json.dumps(governed(gov.job_disable(job_id=job_id, target=target))))
