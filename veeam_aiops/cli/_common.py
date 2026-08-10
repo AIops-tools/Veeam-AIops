@@ -66,6 +66,11 @@ def get_connection(target: str | None, config_path: Path | None = None) -> tuple
     return mgr.connect(target), cfg
 
 
+#: Exit status for a write whose outcome could not be determined — kept distinct
+#: from 0 (confirmed) and 1 (failed) so a script can tell all three apart.
+EXIT_UNDETERMINED = 2
+
+
 def governed(result: Any) -> dict:
     """Return a governed tool's result, or print its error and exit 1.
 
@@ -81,6 +86,14 @@ def governed(result: Any) -> dict:
     sits OUTSIDE ``@tool_errors``, so it stays an exception and never reaches
     here. ``cli_errors`` catches those — see ``_cli_error_types``.
     """
+    # ``outcomeUnknown`` is judged BEFORE ``error``, matching the harness: a
+    # write whose response was lost carries BOTH keys, and it is audited
+    # `unknown` precisely because it may have taken effect. Reporting that as a
+    # plain failure would tell a script the change did not happen and invite the
+    # double-apply the payload's own note warns about.
+    if isinstance(result, dict) and result.get("outcomeUnknown"):
+        console.print(f"[yellow]Outcome undetermined: {result.get('note') or ''}[/]")
+        raise typer.Exit(EXIT_UNDETERMINED)
     if isinstance(result, dict) and result.get("error"):
         console.print(f"[red]Error: {result['error']}[/]")
         raise typer.Exit(1)
