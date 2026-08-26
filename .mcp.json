@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "veeam-aiops": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "veeam-aiops==0.11.0",
+        "veeam-aiops-mcp"
+      ]
+    }
+  }
+}

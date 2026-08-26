@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "veeam-aiops",
+  "displayName": "Veeam AIops",
+  "version": "0.11.0",
+  "description": "Governed Veeam Backup & Replication ops — 25 MCP tools with audit, budget, undo guards.",
+  "author": {
+    "name": "Wei Zhou",
+    "email": "zhouwei008@gmail.com",
+    "url": "https://github.com/AIops-tools"
+  },
+  "homepage": "https://github.com/AIops-tools/Veeam-AIops",
+  "repository": "https://github.com/AIops-tools/Veeam-AIops",
+  "license": "MIT",
+  "keywords": [
+    "aiops",
+    "mcp",
+    "governance",
+    "veeam"
+  ]
+}
