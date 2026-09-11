@@ -112,9 +112,9 @@ def _collect(
                 f"Refusing to return a partial result."
             )
     raise IncompleteCollection(
-        f"{path}: {total} items is more than {max_pages} pages of {page_size}; "
-        f"refusing to return a partial result. Narrow the query (a name filter, "
-        f"or a single backup)."
+        f"{path}: stopped after {max_pages} pages with {len(collected)} of {total} "
+        f"items; refusing to return a partial result. Narrow the query (a name "
+        f"filter, or a single backup)."
     )
 
 

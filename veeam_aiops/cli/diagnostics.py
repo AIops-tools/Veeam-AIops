@@ -59,10 +59,12 @@ def _failing_log_titles(conn: Any, session_id: str) -> list[str]:
 def diagnose_job_failures(
     target: TargetOption = None,
     limit: int = typer.Option(100, "--limit", help="Newest sessions to analyse (1-1000)."),
+    since_hours: int = typer.Option(None, "--since-hours",
+                                    help="Only sessions created in the last N hours."),
 ) -> None:
     """Triage recent job sessions: flag Failed/Warning runs and categorize why."""
     conn, _ = get_connection(target)
-    window = session_ops.list_sessions(conn, limit=limit)
+    window = session_ops.list_sessions(conn, limit=limit, since_hours=since_hours)
     session_rows = window["sessions"]
     error_index: dict[str, list[str]] = {}
     for s in session_rows:
@@ -71,7 +73,8 @@ def diagnose_job_failures(
             if sid:
                 error_index[sid] = _failing_log_titles(conn, sid)
     result = diag.job_failure_findings(session_rows, error_index,
-                                       sessions_truncated=window["truncated"])
+                                       sessions_truncated=window["truncated"],
+                                       sessions_since=window["since"])
     console.print(
         f"[bold]Analyzed the newest {result['sessionsAnalyzed']} session(s); "
         f"{result['failures']} failing.[/]"

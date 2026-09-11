@@ -76,7 +76,7 @@ veeam-aiops session stop <session_id> [--dry-run]   # cancel — double confirm
 ## Diagnostics / RCA (read-only)
 
 ```bash
-veeam-aiops diagnose job-failures [--limit 100]  # triage the newest sessions' failures; categorize cause
+veeam-aiops diagnose job-failures [--limit 100] [--since-hours 24]  # triage recent failures; categorize cause
 veeam-aiops diagnose repo-capacity         # flag repositories low on free space (<15% / <10%)
 ```
 

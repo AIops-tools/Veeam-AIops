@@ -128,6 +128,7 @@ def job_failure_findings(
     error_index: dict[str, list[str | None]] | None = None,
     *,
     sessions_truncated: bool | None = None,
+    sessions_since: str | None = None,
 ) -> dict:
     """[ANALYSIS] Flag Failed/Warning backup-job sessions and categorize the cause.
 
@@ -141,6 +142,7 @@ def job_failure_findings(
     Returns the worst-first ``findings`` list plus counts. ``sessionsTruncated``
     carries the caller's window flag through (``None`` when the caller did not
     say): true means older sessions exist that were not analysed.
+    ``sessionsSince`` echoes the caller's time window (``None``: no window).
     """
     idx = error_index or {}
     findings: list[dict] = []
@@ -163,6 +165,7 @@ def job_failure_findings(
         "findings": _rank(findings),
         "sessionsAnalyzed": len(session_rows),
         "sessionsTruncated": sessions_truncated,
+        "sessionsSince": sessions_since,
         "failures": len(findings),
     }
 

@@ -119,7 +119,9 @@ def list_restore_points(
         params["backupIdFilter"] = backup_id
     rows = fetch_first(conn, "/api/v1/restorePoints", limit + 1, params=params)
     if backup_id:
-        foreign = [r for r in rows if r.get("backupId") and str(r["backupId"]) != str(backup_id)]
+        wanted = str(backup_id).strip().lower()
+        foreign = [r for r in rows
+                   if r.get("backupId") and str(r["backupId"]).strip().lower() != wanted]
         if foreign:
             raise ValueError(
                 f"The server returned restore points of another backup for "

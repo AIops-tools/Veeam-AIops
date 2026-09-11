@@ -20,7 +20,8 @@ used, and currently-running sessions. Call this first to triage an environment.
 | `repository_capacity_rca` | R | low | ~150 |
 
 `job_failure_rca` scans the newest `limit` sessions (default 100, newest first by
-`creationTime`; `sessionsTruncated` says older ones exist), flags every Failed/Warning run, and
+`creationTime`; `sessionsTruncated` says older ones exist) — pass `since_hours=24`
+to make the window "the last day" instead — flags every Failed/Warning run, and
 categorizes the likely cause (repository full, source/guest unreachable,
 credential/VSS failure, retry exhaustion) from the failing log records — each
 finding cites the session result + matched error substring, worst-first.
@@ -194,12 +195,17 @@ are how Veeam exposes async job/restore progress — poll these instead of
 re-issuing the originating operation; read `session_log` to see *why* one failed.
 `session_list` returns the newest `limit` sessions (default 100, max 1000) as
 `{"sessions", "returned", "limit", "truncated", "order"}`, sorted by the server
-(`orderColumn=CreationTime&orderAsc=false`), so "recent" is explicit.
+(`orderColumn=CreationTime&orderAsc=false`), so "recent" is explicit;
+`since_hours` narrows it to sessions created in the last N hours.
+`overview` does **not** derive "running" from that window: it queries each
+unfinished state (`stateFilter`: Starting, Working, Stopping, Pausing, Resuming,
+Postprocessing, WaitingTape, WaitingRepository, WaitingSlot), so a job started
+days ago is still reported; a refused state lands in `stateQueryErrors`.
 
 ### List reads and paging
 
-The VBR REST API pages its collections and, from revision 1.3, returns 200 items
-per page unless asked otherwise. Inventory reads (`backup_list`,
+The VBR REST API pages its collections; Veeam's spec gives `limit` a default of
+200 from revision 1.3-rev0 (the pinned 1.1-rev1 documents no default). Inventory reads (`backup_list`,
 `backup_object_list`, `job_list`, `repository_list`, `repository_state`,
 `managed_server_list`, `proxy_list`) page to the end; `overview` and
 `repository_capacity_rca` therefore see every repository. The pager advances by

@@ -192,3 +192,92 @@ def test_fetch_first_refuses_a_server_that_ignores_skip():
     fake = _fake({"/x": lambda params, _h: page(items, {**params, "skip": 0, "limit": 100})})
     with pytest.raises(_paging.IncompleteCollection, match="does not honour skip"):
         _paging.fetch_first(fake, "/x", 250)
+
+
+# ─── review round: guards need an accepting side, order must really be applied ──
+
+
+def _sorting_sessions(rows: list[dict]):
+    """A /sessions route that applies orderColumn/orderAsc and stateFilter the way
+    the server does, so newest-first behaviour is exercised, not just requested."""
+    def route(params: dict, _headers: dict) -> list[dict]:
+        out = list(rows)
+        if params.get("stateFilter"):
+            out = [r for r in out if r.get("state") == params["stateFilter"]]
+        if params.get("createdAfterFilter"):
+            out = [r for r in out if r["creationTime"] > params["createdAfterFilter"]]
+        if params.get("orderColumn") == "CreationTime":
+            out.sort(key=lambda r: r["creationTime"], reverse=not params.get("orderAsc", True))
+        return out
+    return route
+
+
+def _estate_with_a_long_running_job() -> list[dict]:
+    """449 finished sessions, plus one started before all of them and still running."""
+    rows = [{"id": f"s{i}", "name": f"job-{i}", "state": "Stopped",
+             "result": {"result": "Success"},
+             "creationTime": f"2026-09-10T{i // 60:02d}:{i % 60:02d}:00Z"} for i in range(1, N)]
+    return [{"id": "copy", "name": "backup-copy", "state": "Working", "result": None,
+             "creationTime": "2026-09-01T00:00:00Z"}, *rows]
+
+
+@pytest.mark.unit
+def test_restore_points_accept_rows_that_match_the_backup_filter():
+    """Review finding 1: only the refusal side was tested, so a flipped comparison
+    that refused every correct query still passed the whole suite."""
+    out = restore.list_restore_points(_fake({"/api/v1/restorePoints": _points(3)}), backup_id="b1")
+    assert out["returned"] == 3
+
+
+@pytest.mark.unit
+def test_restore_points_backup_filter_ignores_uuid_case():
+    rows = _points(2, backup="0f3c9a1e-aaaa-bbbb-cccc-1234567890ab")
+    out = restore.list_restore_points(_fake({"/api/v1/restorePoints": rows}),
+                                      backup_id="0F3C9A1E-AAAA-BBBB-CCCC-1234567890AB")
+    assert out["returned"] == 2
+
+
+@pytest.mark.unit
+def test_overview_counts_a_long_running_job_outside_the_recent_window():
+    """Review finding 2: 'running' came from the newest-100 window, so a job
+    started long ago and still running read as nothing running."""
+    fake = _fake({"/api/v1/sessions": _sorting_sessions(_estate_with_a_long_running_job()),
+                  "/api/v1/jobs": [], "/api/v1/backupInfrastructure/repositories/states": []})
+    s = overview.health_overview(fake)["sessions"]
+    assert s["truncated"] is True
+    assert [r["id"] for r in s["running"]] == ["copy"]
+    assert s["running"][0]["state"] == "Working"
+    assert s["stateQueryErrors"] == []
+
+
+@pytest.mark.unit
+def test_overview_reports_a_state_query_it_could_not_make():
+    def route(params, _headers):
+        if params.get("stateFilter") == "Postprocessing":
+            raise RuntimeError("400 invalid stateFilter")
+        return _sorting_sessions(_estate_with_a_long_running_job())(params, _headers)
+
+    fake = _fake({"/api/v1/sessions": route, "/api/v1/jobs": [],
+                  "/api/v1/backupInfrastructure/repositories/states": []})
+    s = overview.health_overview(fake)["sessions"]
+    assert [e["state"] for e in s["stateQueryErrors"]] == ["Postprocessing"]
+    assert [r["id"] for r in s["running"]] == ["copy"]
+
+
+@pytest.mark.unit
+def test_sessions_can_be_windowed_by_time():
+    """Review finding 3: 'last night's failures' should be a time window, not
+    whatever fits in the newest 100 sessions of every type."""
+    fake = _fake({"/api/v1/sessions": _sorting_sessions(_estate_with_a_long_running_job())})
+    out = sessions.list_sessions(fake, limit=1000, since_hours=24)
+    sent = fake.calls_to("/api/v1/sessions")[0][2]["createdAfterFilter"]
+    assert sent.endswith("Z") and "T" in sent
+    assert out["since"] == sent
+
+
+@pytest.mark.unit
+def test_fetch_first_budget_message_states_what_happened():
+    items = _rows("x", 50)
+    fake = _fake({"/x": lambda params, _h: page(items, {**params, "limit": 1})})
+    with pytest.raises(_paging.IncompleteCollection, match=r"3 pages .*3 of 50"):
+        _paging.fetch_first(fake, "/x", 10, max_pages=3)

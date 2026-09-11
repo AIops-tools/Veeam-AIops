@@ -81,7 +81,7 @@ veeam-aiops doctor
 
 ### Diagnose why last night's backups failed
 
-1. `veeam-aiops diagnose job-failures` → worst-first table of Failed/Warning sessions, each with the categorized cause (repository full / source unreachable / credential-VSS / retry exhaustion) and the cited failing log line
+1. `veeam-aiops diagnose job-failures --since-hours 24` → worst-first table of Failed/Warning sessions, each with the categorized cause (repository full / source unreachable / credential-VSS / retry exhaustion) and the cited failing log line
 2. If a finding says **repository full**, confirm with `veeam-aiops diagnose repo-capacity` → the flagged repo's measured free% and free bytes
 3. Fix the root cause (extend/offload the repository, restore source connectivity, or repair guest credentials/VSS), then `veeam-aiops job retry <job_id>` to re-run only the failed objects
 4. `veeam-aiops session list` → `veeam-aiops session get <session_id>` to confirm the retry completes — do not tight-loop `session get` (the runaway budget guard will trip it)

@@ -9,15 +9,21 @@ structural answer to the "poll a slow op, burn tokens" failure mode).
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from veeam_aiops.connection import _seg
 from veeam_aiops.governance import opt_str, sanitize
-from veeam_aiops.ops._paging import fetch_first, history_limit
+from veeam_aiops.ops._paging import fetch_all, fetch_first, history_limit
 
 DEFAULT_LIMIT = 100
 # Newest first: both orderColumn/orderAsc exist from revision 1.1-rev1 on.
 _NEWEST_FIRST = {"orderColumn": "CreationTime", "orderAsc": False}
+SINCE_HOURS_MAX = 24 * 366
+# ESessionState values (revision 1.1-rev1) for a session that has not finished:
+# everything except Stopped and Idle. One stateFilter query each.
+ACTIVE_STATES = ("Starting", "Working", "Stopping", "Pausing", "Resuming", "Postprocessing",
+                 "WaitingTape", "WaitingRepository", "WaitingSlot")
 
 
 def _result_value(s: dict) -> object | None:
@@ -42,22 +48,71 @@ def _session_summary(s: dict) -> dict:
     }
 
 
-def list_sessions(conn: Any, limit: int = DEFAULT_LIMIT) -> dict:
+def _since(hours: Any) -> str:
+    if isinstance(hours, bool) or not isinstance(hours, int) or not 1 <= hours <= SINCE_HOURS_MAX:
+        raise ValueError(f"since_hours must be an integer between 1 and {SINCE_HOURS_MAX}.")
+    start = datetime.now(UTC) - timedelta(hours=hours)
+    return start.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def list_sessions(conn: Any, limit: int = DEFAULT_LIMIT, since_hours: int | None = None) -> dict:
     """[READ] The newest ``limit`` sessions with id, name, type, state, result.
 
-    Returns ``{"sessions", "returned", "limit", "truncated", "order"}``. "Recent"
-    is explicit: the server sorts by ``creationTime`` descending, and
+    Returns ``{"sessions", "returned", "limit", "truncated", "order", "since"}``.
+    "Recent" is explicit: the server sorts by ``creationTime`` descending, and
     ``truncated`` (measured by asking for one more) says older sessions exist
-    beyond the window.
+    beyond the window. ``since_hours`` narrows the window to sessions created in
+    the last N hours (``createdAfterFilter``); ``since`` echoes the cut-off sent.
     """
     limit = history_limit(limit)
-    rows = fetch_first(conn, "/api/v1/sessions", limit + 1, params=dict(_NEWEST_FIRST))
+    params = dict(_NEWEST_FIRST)
+    since = _since(since_hours) if since_hours is not None else None
+    if since:
+        params["createdAfterFilter"] = since
+    rows = fetch_first(conn, "/api/v1/sessions", limit + 1, params=params)
     return {
         "sessions": [_session_summary(s) for s in rows[:limit]],
         "returned": min(len(rows), limit),
         "limit": limit,
         "truncated": len(rows) > limit,
         "order": "newest first (creationTime)",
+        "since": since,
+    }
+
+
+def active_sessions(conn: Any) -> dict:
+    """[READ] Every unfinished session, however long ago it started.
+
+    One ``stateFilter`` query per state in :data:`ACTIVE_STATES`, each read to
+    the end — a backup-copy job started days ago is still found, which a
+    newest-N window cannot promise. Rows are kept only if their state really is
+    the one asked for. A server that ignores the filter returns the whole
+    collection on the first query, so that query is filtered locally and the
+    rest are skipped (``stateFilterIgnored``). A state the server refuses is
+    listed in ``stateQueryErrors`` rather than silently treated as "none".
+    """
+    found: dict[str, dict] = {}
+    errors: list[dict] = []
+    ignored = False
+    for state in ACTIVE_STATES:
+        try:
+            rows = fetch_all(conn, "/api/v1/sessions", params={"stateFilter": state})
+        except Exception as exc:  # noqa: BLE001 — reported per state, never read as "none"
+            errors.append({"state": state, "error": str(exc)[:200]})
+            continue
+        wanted = {s.lower() for s in ACTIVE_STATES} if any(
+            str(r.get("state") or "").lower() != state.lower() for r in rows) else {state.lower()}
+        for row in rows:
+            if str(row.get("state") or "").lower() in wanted:
+                found.setdefault(str(row.get("id")), _session_summary(row))
+        if len(wanted) > 1:
+            ignored = True
+            break
+    return {
+        "sessions": sorted(found.values(), key=lambda s: str(s.get("id"))),
+        "states": list(ACTIVE_STATES),
+        "stateFilterIgnored": ignored,
+        "stateQueryErrors": errors,
     }
 
 

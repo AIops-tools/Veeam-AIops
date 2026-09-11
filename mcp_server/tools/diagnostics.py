@@ -36,21 +36,26 @@ def _failing_log_titles(conn: Any, session_id: str) -> list[str]:
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def job_failure_rca(limit: int = 100, target: Optional[str] = None) -> dict:
+def job_failure_rca(
+    limit: int = 100, since_hours: Optional[int] = None, target: Optional[str] = None
+) -> dict:
     """[READ] Triage recent backup-job sessions: flag every Failed/Warning run.
 
     Pulls the newest `limit` sessions, fetches the failing log records for each
     bad run, and categorizes the likely cause (repository full, source/guest
     unreachable, credential/VSS failure, retry exhaustion) worst-first, citing
     the session result and the matched error substring for every finding.
-    sessionsTruncated=true means older sessions were not analysed.
+    sessionsTruncated=true means older sessions were not analysed. For "what
+    failed last night", pass since_hours=24 so the window is a time span rather
+    than whatever fits in the newest `limit` sessions of every type.
 
     Args:
         limit: Newest sessions to analyse, 1-1000 (default 100).
+        since_hours: Only sessions created in the last N hours (optional).
         target: Veeam target name from config; omit to use the default.
     """
     conn = _get_connection(target)
-    window = session_ops.list_sessions(conn, limit=limit)
+    window = session_ops.list_sessions(conn, limit=limit, since_hours=since_hours)
     session_rows = window["sessions"]
     error_index: dict[str, list[str]] = {}
     for s in session_rows:
@@ -59,7 +64,8 @@ def job_failure_rca(limit: int = 100, target: Optional[str] = None) -> dict:
             if sid:
                 error_index[sid] = _failing_log_titles(conn, sid)
     return diag.job_failure_findings(session_rows, error_index,
-                                     sessions_truncated=window["truncated"])
+                                     sessions_truncated=window["truncated"],
+                                     sessions_since=window["since"])
 
 
 @mcp.tool()

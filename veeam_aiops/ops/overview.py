@@ -16,7 +16,6 @@ from veeam_aiops.ops import sessions as session_ops
 
 # Repositories at or above this used-% are flagged as "near full".
 _NEAR_FULL_PERCENT = 85.0
-_RUNNING_STATES = {"working", "running", "starting", "stopping"}
 
 
 def _job_health(conn: Any) -> dict:
@@ -49,22 +48,23 @@ def _repo_health(conn: Any) -> dict:
 
 
 def _session_health(conn: Any) -> dict:
-    """Running sessions among the newest ones — the window is stated, not implied.
+    """The newest sessions (a stated window) plus every unfinished one.
 
-    A session started long ago and still running falls outside the window when
-    ``truncated`` is true; ``running`` covers the window only.
+    ``running`` does not come from the window: a job started long ago and still
+    running would fall outside it and read as "nothing running". It is queried
+    by state instead (``ops.sessions.active_sessions``).
     """
     try:
         window = session_ops.list_sessions(conn)
+        active = session_ops.active_sessions(conn)
     except Exception as exc:  # noqa: BLE001 — report as partial
         return {"error": str(exc)[:200]}
-    running = [
-        {"id": r.get("id"), "name": r.get("name")}
-        for r in window["sessions"]
-        if str(r.get("state") or "").lower() in _RUNNING_STATES
-    ]
+    running = [{"id": r.get("id"), "name": r.get("name"), "state": r.get("state")}
+               for r in active["sessions"]]
     return {"recent": window["returned"], "limit": window["limit"],
-            "truncated": window["truncated"], "order": window["order"], "running": running}
+            "truncated": window["truncated"], "order": window["order"], "running": running,
+            "stateFilterIgnored": active["stateFilterIgnored"],
+            "stateQueryErrors": active["stateQueryErrors"]}
 
 
 def health_overview(conn: Any) -> dict:

@@ -129,7 +129,7 @@ def test_overview_fans_out_and_summarizes(monkeypatch, fake_veeam):
     assert out["jobs"]["byLastResult"] == {"Success": 1, "Failed": 1}
     assert out["jobs"]["disabled"] == 1
     assert out["repositories"]["nearFull"] == [{"name": "Main", "usedPercent": 95.0}]
-    assert out["sessions"]["running"] == [{"id": "s1", "name": "Daily run"}]
+    assert out["sessions"]["running"] == [{"id": "s1", "name": "Daily run", "state": "Working"}]
     assert set(fake.paths("GET")) == {
         "/api/v1/jobs",
         "/api/v1/backupInfrastructure/repositories/states",
@@ -614,3 +614,16 @@ def test_job_failure_rca_says_when_older_sessions_were_not_analysed(monkeypatch)
     assert out["failures"] == 1
     params = fake.calls_to("/api/v1/sessions")[0][2]
     assert params["orderColumn"] == "CreationTime" and params["orderAsc"] is False
+
+
+@pytest.mark.unit
+def test_job_failure_rca_time_window_reaches_the_server(monkeypatch):
+    from footprint_fixtures import RouteFake
+
+    from mcp_server.tools import diagnostics as diag_tools
+
+    fake = RouteFake({"/api/v1/sessions": []}, build=None)
+    _wire(monkeypatch, diag_tools, fake)
+    out = diag_tools.job_failure_rca(since_hours=24)
+    sent = fake.calls_to("/api/v1/sessions")[0][2]["createdAfterFilter"]
+    assert out["sessionsSince"] == sent and out["sessionsAnalyzed"] == 0
