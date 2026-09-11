@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "veeam-aiops",
   "displayName": "Veeam AIops",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "Governed Veeam Backup & Replication ops — 27 MCP tools with audit, budget, undo guards.",
   "author": {
     "name": "Wei Zhou",

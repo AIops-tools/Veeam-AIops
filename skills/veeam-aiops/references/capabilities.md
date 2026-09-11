@@ -192,7 +192,9 @@ run and what moves the data.
 REST endpoints: `GET /api/v1/sessions`, `GET /api/v1/sessions/{id}`,
 `GET /api/v1/sessions/{id}/logs`, `POST /api/v1/sessions/{id}/stop`. Sessions
 are how Veeam exposes async job/restore progress — poll these instead of
-re-issuing the originating operation; read `session_log` to see *why* one failed.
+re-issuing the originating operation; read `session_log` to see *why* one failed —
+each record carries `title`, `description` (the error detail), `status`,
+`startTime` and `updateTime`.
 `session_list` returns the newest `limit` sessions (default 100, max 1000) as
 `{"sessions", "returned", "limit", "truncated", "order"}`, sorted by the server
 (`orderColumn=CreationTime&orderAsc=false`), so "recent" is explicit;

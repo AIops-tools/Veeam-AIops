@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -21,7 +19,6 @@ console = Console()
 
 _SEVERITY_STYLE = {"critical": "red", "warning": "yellow", "info": "cyan"}
 _FAIL_RESULTS = {"failed", "warning"}
-_FAIL_STATUSES = {"failed", "warning", "error"}
 
 
 def _print_findings(findings: list[dict]) -> None:
@@ -41,19 +38,6 @@ def _print_findings(findings: list[dict]) -> None:
     console.print(table)
 
 
-def _failing_log_titles(conn: Any, session_id: str) -> list[str]:
-    """Best-effort titles of the failing records in one session's log."""
-    try:
-        logs = session_ops.get_session_log(conn, session_id)
-    except Exception:  # noqa: BLE001 — advisory context only
-        return []
-    return [
-        rec["title"]
-        for rec in logs
-        if rec.get("title") and str(rec.get("status") or "").lower() in _FAIL_STATUSES
-    ]
-
-
 @diagnose_app.command("job-failures")
 @cli_errors
 def diagnose_job_failures(
@@ -66,21 +50,20 @@ def diagnose_job_failures(
     conn, _ = get_connection(target)
     window = session_ops.list_sessions(conn, limit=limit, since_hours=since_hours)
     session_rows = window["sessions"]
-    error_index: dict[str, list[str]] = {}
-    for s in session_rows:
-        if str(s.get("result") or "").lower() in _FAIL_RESULTS:
-            sid = str(s.get("id") or "")
-            if sid:
-                error_index[sid] = _failing_log_titles(conn, sid)
+    error_index, unreadable = session_ops.collect_failure_logs(conn, session_rows, _FAIL_RESULTS)
     result = diag.job_failure_findings(session_rows, error_index,
                                        sessions_truncated=window["truncated"],
-                                       sessions_since=window["since"])
+                                       sessions_since=window["since"],
+                                       logs_unreadable=unreadable)
     console.print(
         f"[bold]Analyzed the newest {result['sessionsAnalyzed']} session(s); "
         f"{result['failures']} failing.[/]"
     )
     if result["sessionsTruncated"]:
         console.print("[yellow]Older sessions were not analysed (raise --limit).[/]")
+    if unreadable:
+        console.print(f"[yellow]Could not read the log of {len(unreadable)} failed "
+                      f"session(s): {', '.join(unreadable[:5])}.[/]")
     _print_findings(result["findings"])
 
 

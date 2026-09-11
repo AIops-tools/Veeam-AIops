@@ -85,23 +85,26 @@ def test_session_log_renders_records(monkeypatch, fake_veeam):
 
     fake = fake_veeam(
         responses={
-            "/api/v1/sessions/sess-1/logs": {
-                "data": [
+            "/api/v1/sessions/sess-1/logs": {  # SessionLogResult, as the spec defines it
+                "totalRecords": 1,
+                "records": [
                     {
+                        "id": 1,
                         "title": "Starting backup",
-                        "status": "Success",
+                        "status": "Succeeded",
                         "startTime": "2026-07-13T10:00:00Z",
-                        "endTime": "2026-07-13T10:00:05Z",
+                        "updateTime": "2026-07-13T10:00:05Z",
+                        "description": "Queued for processing",
                     }
-                ]
+                ],
             }
         }
     )
     _wire(monkeypatch, "session", fake)
-    result = runner.invoke(app, ["session", "log", "sess-1"])
+    result = runner.invoke(app, ["session", "log", "sess-1"], env={"COLUMNS": "200"})
     assert result.exit_code == 0, result.output
     assert fake.paths("GET") == ["/api/v1/sessions/sess-1/logs"]
-    assert "Success" in result.output
+    assert "Succeeded" in result.output and "Queued for processing" in result.output
 
 
 # ─── repository ──────────────────────────────────────────────────────────────

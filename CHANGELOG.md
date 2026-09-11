@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.13.1 — 2026-09-11
+
+### Fixed
+- **`session_log` crashed on every server that answers the way Veeam's spec
+  says it does, and `job_failure_rca` could never classify a cause.** The spec
+  (every revision 1.1-rev0 to 1.3-rev2) returns a session log as
+  `{"totalRecords", "records": [...]}`; the reader looked for `data`, so it
+  iterated the dict's keys and raised `AttributeError`. `session_log` failed
+  outright (CLI traceback, MCP "operation failed"). `job_failure_rca` swallowed
+  the same exception, treated the log as empty, and reported every failure as
+  "root cause not auto-classified". Present since v0.1.0; every test used a
+  `{"data": [...]}` shape the server never returns. Found by running the
+  released package over real HTTP against a stub built from the spec.
+- Log records now carry `description` (where the error detail is) and
+  `updateTime` (the spec has no `endTime`), and the RCA classifies on
+  `title: description`.
+- `job_failure_rca` lists sessions whose log it could not read in
+  `logsUnreadable` instead of silently reporting them as unclassified; the
+  MCP tool and CLI share one collector.
+
 ## v0.13.0 — 2026-09-11
 
 ### Changed (BREAKING)

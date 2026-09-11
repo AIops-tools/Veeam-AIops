@@ -144,11 +144,13 @@ def test_repo_capacity_missing_or_bad_fields_are_skipped():
 def test_job_failure_rca_tool_collects_sessions_and_logs(monkeypatch, fake_veeam):
     conn = fake_veeam(
         {
-            "/api/v1/sessions/sess-9/logs": {
-                "data": [
-                    {"title": "Not enough space on repository", "status": "Failed"},
-                    {"title": "noise", "status": "Success"},
-                ]
+            "/api/v1/sessions/sess-9/logs": {  # SessionLogResult, as the spec defines it
+                "totalRecords": 2,
+                "records": [
+                    {"id": 1, "title": "Processing VM01", "status": "Failed",
+                     "description": "Not enough space on repository"},
+                    {"id": 2, "title": "noise", "status": "Succeeded"},
+                ],
             },
             "/api/v1/sessions": {
                 "data": [
@@ -169,6 +171,7 @@ def test_job_failure_rca_tool_collects_sessions_and_logs(monkeypatch, fake_veeam
     # only the failing session's log was fetched (not the healthy one)
     assert conn.paths("GET").count("/api/v1/sessions/sess-9/logs") == 1
     assert not any("sess-1/logs" in p for p in conn.paths("GET"))
+    assert out["logsUnreadable"] == []
 
 
 @pytest.mark.unit

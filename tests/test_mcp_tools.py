@@ -348,14 +348,15 @@ def test_session_get_hits_session_detail(monkeypatch, fake_veeam):
 def test_session_log_hits_logs_endpoint(monkeypatch, fake_veeam):
     fake = fake_veeam(
         responses={
-            "/logs": {"data": [{"title": "Queued for processing", "status": "Succeeded",
-                                "startTime": "t0", "endTime": "t1"}]}
+            "/logs": {"totalRecords": 1,
+                      "records": [{"id": 1, "title": "Queued for processing",
+                                   "status": "Succeeded", "startTime": "t0", "updateTime": "t1"}]}
         }
     )
     _wire(monkeypatch, sessions_tools, fake)
     rows = sessions_tools.session_log(session_id="s1")
     assert fake.paths("GET") == ["/api/v1/sessions/s1/logs"]
-    assert rows[0]["title"] == "Queued for processing"
+    assert rows[0]["title"] == "Queued for processing" and rows[0]["updateTime"] == "t1"
 
 
 @pytest.mark.unit

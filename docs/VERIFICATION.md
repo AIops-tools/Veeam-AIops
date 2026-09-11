@@ -55,6 +55,10 @@ veeam-aiops init      # encrypted secret store, TLS verify on by default
       (its first request carries no `skip`/`limit`).
 - [ ] `session list` is newest first and `diagnose job-failures` reports
       `sessionsTruncated` when older sessions exist.
+- [ ] `session log <id>` on a failed session shows its records with
+      `description`, and `diagnose job-failures` classifies that failure's cause
+      (not "not auto-classified") with `logsUnreadable` empty. Before 0.13.1 the
+      log reader crashed on the spec's `records` shape.
 
 ### 2b. Backup storage footprint (added 0.12.0 — built from Veeam's OpenAPI spec, never run live)
 Needs VBR 12.3+. Ground truth is the VBR console: *Backups → Disk → (job) →

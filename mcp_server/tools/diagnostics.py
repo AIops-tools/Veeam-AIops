@@ -6,7 +6,7 @@ telemetry once and hands it to a pure analysis function in
 live VBR server, and the collection stays here where the connection is.
 """
 
-from typing import Any, Optional
+from typing import Optional
 
 from mcp_server._shared import _get_connection, mcp, tool_errors
 from veeam_aiops.governance import governed_tool
@@ -16,21 +16,6 @@ from veeam_aiops.ops import sessions as session_ops
 
 # Session results that warrant pulling the failing log records for classification.
 _FAIL_RESULTS = {"failed", "warning"}
-# Log-record statuses that identify the failing step inside a session.
-_FAIL_STATUSES = {"failed", "warning", "error"}
-
-
-def _failing_log_titles(conn: Any, session_id: str) -> list[str]:
-    """Best-effort titles of the failing records in one session's log."""
-    try:
-        logs = session_ops.get_session_log(conn, session_id)
-    except Exception:  # noqa: BLE001 — advisory context; one bad log must not blank RCA
-        return []
-    return [
-        rec["title"]
-        for rec in logs
-        if rec.get("title") and str(rec.get("status") or "").lower() in _FAIL_STATUSES
-    ]
 
 
 @mcp.tool()
@@ -57,15 +42,11 @@ def job_failure_rca(
     conn = _get_connection(target)
     window = session_ops.list_sessions(conn, limit=limit, since_hours=since_hours)
     session_rows = window["sessions"]
-    error_index: dict[str, list[str]] = {}
-    for s in session_rows:
-        if str(s.get("result") or "").lower() in _FAIL_RESULTS:
-            sid = str(s.get("id") or "")
-            if sid:
-                error_index[sid] = _failing_log_titles(conn, sid)
+    error_index, unreadable = session_ops.collect_failure_logs(conn, session_rows, _FAIL_RESULTS)
     return diag.job_failure_findings(session_rows, error_index,
                                      sessions_truncated=window["truncated"],
-                                     sessions_since=window["since"])
+                                     sessions_since=window["since"],
+                                     logs_unreadable=unreadable)
 
 
 @mcp.tool()

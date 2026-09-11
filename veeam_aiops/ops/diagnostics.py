@@ -129,6 +129,7 @@ def job_failure_findings(
     *,
     sessions_truncated: bool | None = None,
     sessions_since: str | None = None,
+    logs_unreadable: list[str] | None = None,
 ) -> dict:
     """[ANALYSIS] Flag Failed/Warning backup-job sessions and categorize the cause.
 
@@ -143,6 +144,8 @@ def job_failure_findings(
     carries the caller's window flag through (``None`` when the caller did not
     say): true means older sessions exist that were not analysed.
     ``sessionsSince`` echoes the caller's time window (``None``: no window).
+    ``logsUnreadable`` lists sessions whose log could not be read — their cause
+    is "not auto-classified" because nobody could look, not because nothing matched.
     """
     idx = error_index or {}
     findings: list[dict] = []
@@ -166,6 +169,7 @@ def job_failure_findings(
         "sessionsAnalyzed": len(session_rows),
         "sessionsTruncated": sessions_truncated,
         "sessionsSince": sessions_since,
+        "logsUnreadable": logs_unreadable,
         "failures": len(findings),
     }
 

@@ -129,25 +129,80 @@ def get_session(conn: Any, session_id: str) -> dict:
     return summary
 
 
+def _log_records(data: Any) -> list:
+    """The records of a ``SessionLogResult`` — ``{"totalRecords", "records"}``.
+
+    Veeam's spec (every revision 1.1-rev0 to 1.3-rev2) names the list
+    ``records``. ``data`` is still accepted in case a build wraps it like the
+    collection endpoints; anything else is no records, never the dict's keys.
+    """
+    if isinstance(data, dict):
+        for key in ("records", "data"):
+            if isinstance(data.get(key), list):
+                return data[key]
+        return []
+    return data if isinstance(data, list) else []
+
+
 def get_session_log(conn: Any, session_id: str) -> list[dict]:
     """[READ] Return the log records (events) of one session.
 
     Use to see *why* a session failed instead of re-running the job blind.
-    Each record is reduced to its title, status, and timing.
+    Each record is reduced to its title, description (where Veeam puts the
+    error detail), status, and timing (``startTime`` / ``updateTime``).
     """
     data = conn.get(f"/api/v1/sessions/{_seg(session_id)}/logs")
-    items = data.get("data", data) if isinstance(data, dict) else data
-    out: list[dict] = []
-    for rec in items or []:
-        out.append(
-            {
-                "title": opt_str(rec.get("title", rec.get("name")), 200),
-                "status": opt_str(rec.get("status"), 32),
-                "startTime": opt_str(rec.get("startTime"), 64),
-                "endTime": opt_str(rec.get("endTime"), 64),
-            }
-        )
-    return out
+    return [
+        {
+            "title": opt_str(rec.get("title", rec.get("name")), 200),
+            "description": opt_str(rec.get("description"), 400),
+            "status": opt_str(rec.get("status"), 32),
+            "startTime": opt_str(rec.get("startTime"), 64),
+            "updateTime": opt_str(rec.get("updateTime"), 64),
+        }
+        for rec in _log_records(data)
+        if isinstance(rec, dict)
+    ]
+
+
+_FAIL_LOG_STATUSES = {"failed", "warning", "error"}
+
+
+def failing_log_lines(conn: Any, session_id: str) -> tuple[list[str], str | None]:
+    """``(lines, error)``: the Failed/Warning records of one session's log.
+
+    Each line is ``"title: description"`` so the error detail reaches the RCA
+    classifier. A log that cannot be read returns its error instead of an empty
+    list — "no failing records" and "could not look" must stay distinguishable.
+    """
+    try:
+        records = get_session_log(conn, session_id)
+    except Exception as exc:  # noqa: BLE001 — returned to the caller, not swallowed
+        return [], str(exc)[:200]
+    lines = []
+    for rec in records:
+        if str(rec.get("status") or "").lower() not in _FAIL_LOG_STATUSES:
+            continue
+        parts = [p for p in (rec.get("title"), rec.get("description")) if p]
+        if parts:
+            lines.append(": ".join(parts))
+    return lines, None
+
+
+def collect_failure_logs(conn: Any, session_rows: list[dict],
+                         fail_results: set[str]) -> tuple[dict[str, list[str]], list[str]]:
+    """Failing log lines for every failed session, plus the ids whose log was unreadable."""
+    index: dict[str, list[str]] = {}
+    unreadable: list[str] = []
+    for row in session_rows:
+        sid = str(row.get("id") or "")
+        if not sid or str(row.get("result") or "").lower() not in fail_results:
+            continue
+        lines, error = failing_log_lines(conn, sid)
+        index[sid] = lines
+        if error is not None:
+            unreadable.append(sid)
+    return index, unreadable
 
 
 def stop_session(conn: Any, session_id: str) -> dict:

@@ -61,10 +61,10 @@ def session_log(session_id: str, target: TargetOption = None) -> None:
     conn, _ = get_connection(target)
     rows = sessions.get_session_log(conn, session_id)
     table = Table(title=f"Session log {session_id}")
-    for col in ("title", "status", "startTime", "endTime"):
-        table.add_column(col)
+    for col in ("title", "status", "startTime", "updateTime", "description"):
+        table.add_column(col, overflow="fold")
     for r in rows:
-        table.add_row(r["title"], r["status"], r["startTime"], r["endTime"])
+        table.add_row(r["title"], r["status"], r["startTime"], r["updateTime"], r["description"])
     console.print(table)
 
 
