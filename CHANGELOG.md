@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.13.0 — 2026-09-11
 
 ### Changed (BREAKING)
 - **`restore_list_points` and `session_list` return an envelope instead of a
@@ -9,19 +9,25 @@
   `orderAsc=false`), with a new `limit` (default 100, max 1000). `truncated` is
   measured by asking for one more item. The CLI `restore list-points` and
   `session list` gained `--limit` and say when older items exist.
-- `job_failure_rca` / `diagnose job-failures` take `limit` and report
-  `sessionsTruncated`; `overview`'s session block reports its window (`limit`,
-  `truncated`, `order`) — `running` covers that window.
+- `job_failure_rca` / `diagnose job-failures` take `limit` and an optional
+  `since_hours` (sent as `createdAfterFilter`), and report `sessionsTruncated`
+  and `sessionsSince`. For "what failed last night", `since_hours=24` makes the
+  window a time span instead of the newest N sessions of every type.
+- `overview`'s session block reports its window (`limit`, `truncated`,
+  `order`), and `running` entries now carry their `state`. `running` is **not**
+  taken from that window: it is queried per unfinished state (`stateFilter`),
+  so a job started days ago and still running is found; a state the server
+  refuses is listed in `stateQueryErrors`, not read as "none".
 
 ### Fixed
 - **List reads no longer stop at the server's first page.** Every list read took
-  one response, and from REST revision 1.3 (VBR 13) the server returns 200 items
-  per page by default — so a job, repository, proxy or backup past the 200th was
-  silently missing, including from `overview` and `repository_capacity_rca`
-  (a repository past the first page was never capacity-checked). Inventory
-  reads now page to the end and refuse rather than return a partial list;
-  histories use the envelope above. What the pinned revision 1.1-rev1 does by
-  default is undocumented, so the reads now page explicitly either way.
+  one response. Veeam's spec gives `limit` a default of 200 from REST revision
+  1.3-rev0; what the server does under this tool's pinned 1.1-rev1 is
+  undocumented. Where the server does cap, a job, repository, proxy or backup
+  past the 200th could be silently missing — including from `overview` and
+  `repository_capacity_rca`, where a repository past the first page would never
+  be capacity-checked. Inventory reads now page explicitly to the end and
+  refuse rather than return a partial list; histories use the envelope above.
 - `restore_list_points(backup_id=...)` refuses when the server returns points of
   another backup (the filter was ignored) instead of presenting them as the
   requested backup's.
