@@ -71,10 +71,34 @@ def run_doctor(skip_auth: bool = False) -> int:
     for target in config.targets:
         try:
             conn = mgr.connect(target.name)
-            conn.get("/api/v1/serverInfo")
+            # serverTime is open to every role; serverInfo is Backup
+            # Administrator only from REST revision 1.1-rev2 on, so it cannot be
+            # the connectivity proof for a least-privilege account.
+            conn.get("/api/v1/serverTime")
             _console.print(f"[green]✓ Connected to '{target.name}' ({target.host})[/]")
         except Exception as exc:  # noqa: BLE001 — connectivity is a status, not a crash
             _console.print(f"[red]✗ Connect to '{target.name}' failed: {exc}[/]")
             problems += 1
+            continue
+        _report_build(conn, target.name)
 
     return 1 if problems else 0
+
+
+def _report_build(conn: object, name: str) -> None:
+    """Print the VBR build when the account may read it; never a failure."""
+    try:
+        info = conn.get("/api/v1/serverInfo")
+    except Exception as exc:  # noqa: BLE001 — informational only
+        if getattr(exc, "status_code", None) == 403:
+            _console.print(
+                f"[yellow]! '{name}': build not readable — /api/v1/serverInfo needs the "
+                f"Backup Administrator role. Reads work with this account; storage-usage "
+                f"tools will probe the REST revision instead.[/]"
+            )
+        else:
+            _console.print(f"[yellow]! '{name}': could not read the VBR build: {exc}[/]")
+        return
+    build = info.get("buildVersion") if isinstance(info, dict) else None
+    if build:
+        _console.print(f"[green]✓ '{name}' VBR build {build}[/]")

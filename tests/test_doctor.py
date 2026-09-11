@@ -101,7 +101,36 @@ def test_all_healthy_exits_zero(isolated_home, ok_connection, capsys):
     assert "Connected to 'vbr-lab'" in out
     ok_connection.return_value.connect.assert_called_once_with("vbr-lab")
     conn = ok_connection.return_value.connect.return_value
-    conn.get.assert_called_once_with("/api/v1/serverInfo")
+    assert [c.args[0] for c in conn.get.call_args_list] == [
+        "/api/v1/serverTime", "/api/v1/serverInfo"]
+
+
+def test_viewer_account_is_not_reported_as_a_failed_connection(
+    isolated_home, ok_connection, capsys
+):
+    """serverInfo is Backup-Administrator-only from REST revision 1.1-rev2 on.
+
+    A least-privilege Backup Viewer account logs in and reads fine but gets 403
+    there; reporting that as "Connect failed" sends the operator to debug a
+    network that works. Connectivity is proven by serverTime (any role).
+    """
+    from veeam_aiops.connection import VeeamApiError
+
+    _write_config(isolated_home, [_target()])
+    _store_secret()
+    conn = ok_connection.return_value.connect.return_value
+
+    def _get(path, **_):
+        if path == "/api/v1/serverInfo":
+            raise VeeamApiError("Authentication/authorization failed (403)", status_code=403)
+        return {"serverTime": "2026-09-11T00:00:00Z"}
+
+    conn.get.side_effect = _get
+    assert run_doctor() == 0
+    out = " ".join(capsys.readouterr().out.split())
+    assert "Connected to 'vbr-lab'" in out
+    assert "Backup Administrator" in out
+    assert "failed" not in out
 
 
 def test_skip_auth_never_touches_connection_layer(isolated_home, monkeypatch, capsys):
