@@ -113,6 +113,7 @@ mcp = MCPServer(
         "'overview'; backup jobs (list/get, start/stop/retry, enable/disable); "
         "restore points (optionally per backup) + VM restore; backup "
         "repositories (list/get/state capacity); stored backups + their objects; "
+        "per-VM backup storage usage + a largest-first storage ranking (showback); "
         "infrastructure inventory (managed servers, proxies); and async sessions "
         "(list/get, logs, stop) for polling job/restore progress. Every tool runs "
         "through the veeam-aiops governance harness (audit / budget / risk-tier / undo)."

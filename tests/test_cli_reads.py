@@ -419,3 +419,57 @@ def test_cli_errors_prefixes_keyerror(monkeypatch):
     result = runner.invoke(app, ["repository", "list"])
     assert result.exit_code == 1
     assert "Missing required key or environment variable" in result.output
+
+
+# ─── backup storage footprint ────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_backup_usage_prints_totals_and_caveats(monkeypatch):
+    from footprint_fixtures import PER_MACHINE_FILES, RouteFake, vm01_routes
+
+    from veeam_aiops.cli import app
+
+    _wire(monkeypatch, "backup", RouteFake(vm01_routes(PER_MACHINE_FILES)))
+    result = runner.invoke(app, ["backup", "usage", "VM01"])
+    assert result.exit_code == 0, result.output
+    assert "Total stored: 130.0 GiB" in result.output
+    assert "block-clone" in result.output
+
+
+@pytest.mark.unit
+def test_backup_usage_unknown_name_exits_1_with_candidates(monkeypatch):
+    from footprint_fixtures import PER_MACHINE_FILES, RouteFake, vm01_routes
+
+    from veeam_aiops.cli import app
+
+    _wire(monkeypatch, "backup", RouteFake(vm01_routes(PER_MACHINE_FILES)))
+    result = runner.invoke(app, ["backup", "usage", "VM0"])
+    assert result.exit_code == 1
+    assert "VM01-old" in result.output
+
+
+@pytest.mark.unit
+def test_backup_usage_old_server_exits_1(monkeypatch):
+    from footprint_fixtures import RouteFake
+
+    from veeam_aiops.cli import app
+
+    _wire(monkeypatch, "backup", RouteFake({}, build="12.2.0.334"))
+    result = runner.invoke(app, ["backup", "usage", "VM01"])
+    assert result.exit_code == 1
+    assert "12.3.0.310" in result.output
+
+
+@pytest.mark.unit
+def test_backup_ranking_json_is_the_payload(monkeypatch):
+    import json
+
+    from footprint_fixtures import RouteFake, ranking_routes
+
+    from veeam_aiops.cli import app
+
+    _wire(monkeypatch, "backup", RouteFake(ranking_routes()))
+    result = runner.invoke(app, ["backup", "ranking", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["objects"][0]["name"] == "VM01"

@@ -1,6 +1,6 @@
 # veeam-aiops capabilities
 
-25 MCP tools (17 read, 8 write), each wrapped with the bundled `@governed_tool`
+27 MCP tools (19 read, 8 write), each wrapped with the bundled `@governed_tool`
 harness. Typical response token estimates assume a small/medium environment.
 
 ## Overview (1 — read)
@@ -94,14 +94,72 @@ REST endpoints: `GET /api/v1/backupInfrastructure/repositories`,
 plus a computed used%). `repository_get` merges the static record with its state
 row when available.
 
-## Backups (2 — read)
+## Backups (4 — read)
 
 | Tool | R/W | Risk | Typical response tokens |
 |------|:---:|:----:|:----------------------:|
 | `backup_list` | R | low | 150–800 |
 | `backup_object_list` | R | low | 150–800 |
+| `backup_object_storage_usage` | R | low | 400–1500 |
+| `backup_storage_ranking` | R | low | 300–2000 |
 
 REST endpoints: `GET /api/v1/backups`, `GET /api/v1/backups/{id}/objects`.
+
+### Backup storage footprint (`backup_object_storage_usage`, `backup_storage_ranking`)
+
+Sums Veeam's own per-file accounting from `GET /api/v1/backups/{id}/backupFiles`:
+`backupSize` (on disk after compression and deduplication) and `dataSize`
+(before). Other reads: `GET /api/v1/serverInfo` (build → REST revision),
+`GET /api/v1/backupObjects?nameFilter=`, `GET /api/v1/restorePoints?backupObjectIdFilter=`,
+`GET /api/v1/backups/{id}`, `GET /api/v1/jobs/{id}` (retention). Every collection
+is paged to completion — the server caps a page at 200 by default.
+
+- **Needs VBR 12.3+.** `backupFiles` first appears in REST revision 1.2-rev0
+  (VBR 12.3.0.310, per Veeam's published revision table). The size reads send
+  the newest revision the server's build serves; the rest of the tool keeps its
+  pinned 1.1-rev1. Older builds get a refusal that names the minimum build.
+- **Works with a read-only Backup Viewer account.** `/api/v1/serverInfo` (the
+  build) is Backup Administrator only from revision 1.1-rev2 on; without it the
+  tools offer each revision newest-first on a one-item `GET /api/v1/backups` and
+  use the first the server accepts (`apiRevision.basis: "probe"`; refused
+  revisions are listed in `apiRevision.probeRefusals`).
+- **Shared files are never charged to one machine.** Per-job backup chains keep
+  several VMs in one file; revision 1.3-rev2 (VBR 13.1+) lists every owner, and
+  such files land in `sharedStoredBytes`, outside `storedBytes`. Older revisions
+  name one owner per file, so sharing is decided by the restore points the file
+  itself lists (`restorePointIds`): any point that is not this machine's makes
+  it shared, whatever owner it names. A file whose ownership the server states
+  inconsistently (no owner and no point list, or a single other owner with only
+  this machine's points) goes to `unattributedStoredBytes` — never charged, and
+  visible if owner ids ever turn out not to match backup-object ids. The ranking
+  reads no restore points and charges each file to its listed owner.
+- **One unreadable backup does not blank the result**: it is listed in
+  `unreadableBackups` (with the error) and left out of every total.
+- **The restore-point filter is checked, not trusted.** A query for a random
+  object id must come back empty (`restorePointFilter: "honoured"`); then points
+  under a machine's old name are kept (`restorePointNamesSeen`). If the server
+  ignores the filter — or the check itself fails — points are matched by name,
+  the others are counted in `restorePointsSetAside`, and a caveat says so; if
+  two same-named machines then get the same points, totals are withheld and each
+  machine is marked `attributable: false`.
+- **Full vs incremental** comes from each restore point's `type` and the
+  `backupFileId` it lives in; the `.vbk`/`.vib`/`.vrb` extension is a fallback,
+  and `kindBasis` counts which rule classified each file.
+- **Missing is not zero**: files without a size are counted in `unsizedFiles`
+  and left out of the sums. `approxSourceBytes` is null before revision 1.3-rev2.
+- **Block cloning**: on ReFS / XFS fast-clone repositories synthetic fulls share
+  blocks, so summed file sizes can exceed physical consumption — an upper bound.
+- **Same name, different machines** (two vCenters) are kept apart by identity
+  (`path`, then `objectId` / BIOS UUID) and a caveat is added; the ranking merges
+  one machine across backups by the same identity. Where the revision exposes no
+  inventory id (Hyper-V and agents before 1.3-rev2) identity falls back to name,
+  with a caveat.
+- **Paging checks the server**: `skip` advances by what was actually returned,
+  items are de-duplicated by id, and a server that stops short of its own total
+  or repeats a page is refused rather than billed partially or twice.
+- `changeRate` is mean incremental `dataSize` ÷ latest full `dataSize`, per
+  increment (not per day).
+- No pricing: storage cost models are organisation-specific.
 
 ## Infrastructure (2 — read)
 
@@ -146,7 +204,7 @@ cannot be replayed), and supports `dry_run` to preview the inverse first.
 - **Encrypted credentials**: passwords are stored in `~/.veeam-aiops/secrets.enc`
   (Fernet + scrypt), unlocked by `VEEAM_AIOPS_MASTER_PASSWORD` or a prompt —
   never plaintext on disk.
-- **Audit**: all 25 tools log to `~/.veeam-aiops/audit.db`.
+- **Audit**: all 27 tools log to `~/.veeam-aiops/audit.db`.
 - **Undo store**: the five reversible job writes record an inverse descriptor
   (`_undo_id` on the result); `session_stop` and the high-risk restore record none.
 - **Budget/runaway guard**: caps cumulative calls + wall-time and trips tight

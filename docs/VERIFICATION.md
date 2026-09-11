@@ -46,6 +46,34 @@ veeam-aiops init      # encrypted secret store, TLS verify on by default
 - [ ] `veeam-aiops diagnose repo-capacity` → the reported free% matches the
       console's repository free space.
 
+### 2b. Backup storage footprint (added 0.12.0 — built from Veeam's OpenAPI spec, never run live)
+Needs VBR 12.3+. Ground truth is the VBR console: *Backups → Disk → (job) →
+Properties* lists every file with its size.
+- [ ] `veeam-aiops backup usage <vm>` → `apiRevision.revision` matches the
+      server build (12.3.x → 1.2-rev*, 13.0.x → 1.3-rev0/1, 13.1+ → 1.3-rev2).
+- [ ] Per backup, `storedBytes` equals the sum of that VM's file sizes in the
+      console, and the full / incremental split matches the .vbk / .vib files.
+- [ ] `restorePoints` equals the console's restore-point count for the VM,
+      including a VM with **more than 200** points (exercises paging).
+- [ ] A backup-copy job appears as its own entry with the copy repository.
+- [ ] **Per-job chain** (job with "per-machine backup files" off): the shared
+      file lands in `sharedStoredBytes`, not `storedBytes`, for **every** VM in
+      it. On 12.3 / 13.0 record what `objectId` and `restorePointIds` the server
+      puts on a shared file — sharing detection there rests on `restorePointIds`.
+- [ ] `unattributedFiles` is 0 on a per-machine chain. A non-zero value with
+      `storedBytes` 0 means file owner ids and backup-object ids differ on this
+      build — the one assumption the spec does not settle.
+- [ ] `restorePointFilter` is `honoured` (a random object id returns no points).
+- [ ] With a **Backup Viewer** account: `doctor` connects and notes the build is
+      not readable; `backup usage` reports `apiRevision.basis: "probe"` with the
+      same revision an administrator account gets from the build.
+- [ ] A VM renamed after some backups keeps all its restore points and lists the
+      old name in `restorePointNamesSeen`.
+- [ ] `veeam-aiops backup ranking` → the top rows match the largest VMs you
+      expect, and `unresolvedFiles` is 0 (a non-zero value means file owner ids
+      and backup object ids are not the same namespace on this build).
+- [ ] On a VBR 12.1 / 12.2 server the command refuses and names build 12.3.0.310.
+
 ### 3. A reversible write + its undo
 - [ ] Run a governed write that has a recorded inverse; confirm the result
       carries an `_undo_id` and an audit row lands in the audit DB.

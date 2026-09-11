@@ -558,3 +558,37 @@ def test_proxy_list_hits_proxies(monkeypatch, fake_veeam):
     rows = infra_tools.proxy_list()
     assert fake.paths("GET") == ["/api/v1/backupInfrastructure/proxies"]
     assert rows[0]["server"] == "px.local"
+
+
+# ─── backup storage footprint ────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_storage_usage_tool_is_read_only_and_audited(monkeypatch):
+    from footprint_fixtures import PER_MACHINE_FILES, RouteFake, vm01_routes
+
+    fake = RouteFake(vm01_routes(PER_MACHINE_FILES))
+    _wire(monkeypatch, backups_tools, fake)
+    out = backups_tools.backup_object_storage_usage(name="VM01")
+    assert out["totals"]["storedBytes"] == 130 * 1024**3
+    assert {c[0] for c in fake.calls} == {"GET"}
+    assert backups_tools.backup_object_storage_usage._is_governed_tool
+
+
+@pytest.mark.unit
+def test_storage_usage_tool_surfaces_an_old_server_as_a_teaching_error(monkeypatch):
+    from footprint_fixtures import RouteFake
+
+    _wire(monkeypatch, backups_tools, RouteFake({}, build="12.1.0.2131"))
+    out = backups_tools.backup_object_storage_usage(name="VM01")
+    assert "12.3.0.310" in out["error"]
+
+
+@pytest.mark.unit
+def test_storage_ranking_tool_returns_an_envelope(monkeypatch):
+    from footprint_fixtures import RouteFake, ranking_routes
+
+    _wire(monkeypatch, backups_tools, RouteFake(ranking_routes()))
+    out = backups_tools.backup_storage_ranking(limit=1)
+    assert set(out) >= {"objects", "returned", "limit", "truncated"}
+    assert out["objects"][0]["rank"] == 1 and out["truncated"] is True

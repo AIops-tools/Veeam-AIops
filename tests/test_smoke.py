@@ -23,6 +23,7 @@ EXPECTED_TOOLS = {
     "repository_list", "repository_get", "repository_state",
     # backups
     "backup_list", "backup_object_list",
+    "backup_object_storage_usage", "backup_storage_ranking",
     # sessions
     "session_list", "session_get", "session_log", "session_stop",
     # infrastructure
@@ -54,6 +55,11 @@ def test_all_modules_import():
         "veeam_aiops.ops.infrastructure",
         "veeam_aiops.ops.overview",
         "veeam_aiops.ops.diagnostics",
+        "veeam_aiops.ops.footprint",
+        "veeam_aiops.ops._paging",
+        "veeam_aiops.ops._revision",
+        "veeam_aiops.ops._backup_files",
+        "veeam_aiops.ops.ranking",
         "veeam_aiops.cli",
         "veeam_aiops.cli._root",
         "veeam_aiops.cli._common",
@@ -156,7 +162,7 @@ def test_registered_tool_count_matches_docs():
     """Drift guard: the advertised tool count must match the MCP registry."""
     from mcp_server import _shared
 
-    assert len(_shared.mcp._tool_manager._tools) == 25, (
+    assert len(_shared.mcp._tool_manager._tools) == 27, (
         "tool count changed — update README/SKILL/server.json too"
     )
 

@@ -53,6 +53,8 @@ veeam-aiops repository state               # capacity summary for all repos (use
 ```bash
 veeam-aiops backup list                    # stored backups: id, name, type, time
 veeam-aiops backup objects <backup_id>     # protected objects inside a backup
+veeam-aiops backup usage <name> [--json]   # backup storage one VM consumes, per backup (VBR 12.3+)
+veeam-aiops backup ranking [--limit 20] [--max-backups 100] [--json]  # largest consumers first
 ```
 
 ## Infrastructure

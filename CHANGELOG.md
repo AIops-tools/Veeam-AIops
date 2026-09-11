@@ -1,8 +1,70 @@
 # Changelog
 
-## Unreleased
+## v0.12.0 — 2026-09-11
 
 ### Added
+- **Backup storage footprint per VM** (`backup_object_storage_usage`, CLI
+  `backup usage <name>`) — requested in #2 for showback / chargeback. For one
+  protected object it reports, per backup (primary job and each backup copy
+  separately): repository, restore-point count and date range, stored bytes
+  split into full / incremental, source bytes, GFS files, the job's retention
+  settings and an increment-vs-full change rate. The numbers are sums of
+  Veeam's own per-file accounting (`GET /api/v1/backups/{id}/backupFiles`:
+  `backupSize` after compression and dedup, `dataSize` before). No pricing —
+  cost models are organisation-specific.
+- **Storage ranking** (`backup_storage_ranking`, CLI `backup ranking`) —
+  protected objects ordered by backup storage consumed, largest first, with an
+  explicit rank and a measured `truncated` flag. Answers "which VMs are the most
+  expensive to protect".
+- **Needs VBR 12.3 or later.** `backupFiles` first appears in REST revision
+  1.2-rev0, which shipped in VBR 12.3.0.310 (Veeam's published revision table).
+  The size reads pick the newest revision the server's build serves; every other
+  call keeps the pinned 1.1-rev1. An older server gets a refusal naming the
+  minimum build instead of an opaque 404.
+- Built against Veeam's published OpenAPI specification (revisions 1.2-rev0 to
+  1.3-rev2). **Not yet run against a live VBR server** — see
+  `docs/VERIFICATION.md` §2b.
+
+### Fixed
+- **`doctor` no longer reports a working connection as failed for non-admin
+  accounts.** It proved connectivity with `GET /api/v1/serverInfo`, which is
+  Backup Administrator only from REST revision 1.1-rev2 (VBR 12.2) on, so a
+  least-privilege Backup Viewer account — the recommended setup for read-only
+  use — logged in fine and was then told "Connect failed". Connectivity is now
+  proven with `serverTime` (open to every role); the build is shown when the
+  account may read it, and a 403 there is a note, not a failure.
+
+### Design notes (why the numbers can be billed against)
+- A file that stores several machines (per-job backup chain) is **never charged
+  to one of them**: revision 1.3-rev2 lists every owner, and such files are
+  reported as `sharedStoredBytes`, outside the machine's total. Older revisions
+  report a single owner per file and cannot express sharing; the payload says
+  which field the server used and adds a caveat.
+- Full vs incremental comes from each restore point's own `type`, not the file
+  extension (which is only a fallback, and `kindBasis` says which was used).
+- A file with no reported size is counted as unsized, not as zero.
+- Under the single-owner shape, sharing is decided by the restore points each
+  file lists, not by the one owner it names; a file whose ownership the server
+  states inconsistently is reported as unattributed rather than charged.
+- One unreadable backup is listed (`unreadableBackups`) instead of aborting the
+  report.
+- The restore-point filter is verified with a negative control (a random object
+  id must return nothing) instead of trusted; a renamed VM keeps the points
+  taken under its old name.
+- A read-only Backup Viewer account works: when the build is not readable the
+  REST revision is probed on a read every role may make.
+- Every collection is paged to completion. From revision 1.3 the server returns
+  200 items per page unless asked otherwise, so a single read under-reports a
+  VM with more than 200 restore points. Paging advances by what the server
+  actually returned and de-duplicates by id; a server that stops short or
+  repeats a page is refused rather than billed partially or twice.
+- Same-named VMs on different vCenters stay separate (identity = inventory path,
+  then moref / BIOS UUID).
+- On block-clone repositories (ReFS / XFS fast clone) summed file sizes can
+  exceed physical consumption; the payload says to treat the total as an upper
+  bound there.
+
+### Also in this release
 - **Installable as a Claude Code plugin.** `.claude-plugin/plugin.json` plus a
   root `.mcp.json` make this repo a plugin, so `/plugin install veeam-aiops@aiops-tools`
   delivers the skill and registers the MCP server in one step. The server is

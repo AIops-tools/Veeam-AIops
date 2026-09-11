@@ -15,8 +15,8 @@ coverage of every Veeam operation.
 
 ## What works
 
-- **CLI** (`veeam-aiops ...`): `init`, `overview`, `job list/get/start/stop/retry/enable/disable`, `restore list-points/start`, `repository list/get/state`, `session list/get/log/stop`, `backup list/objects`, `diagnose job-failures/repo-capacity`, `infra servers/proxies`, `secret set/list/rm/migrate/rotate-password`, `doctor`, `mcp`.
-- **MCP server** (`veeam-aiops mcp` or `veeam-aiops-mcp`): **25 tools** (17 read, 8 write), every one wrapped with the bundled `@governed_tool` harness.
+- **CLI** (`veeam-aiops ...`): `init`, `overview`, `job list/get/start/stop/retry/enable/disable`, `restore list-points/start`, `repository list/get/state`, `session list/get/log/stop`, `backup list/objects/usage/ranking`, `diagnose job-failures/repo-capacity`, `infra servers/proxies`, `secret set/list/rm/migrate/rotate-password`, `doctor`, `mcp`.
+- **MCP server** (`veeam-aiops mcp` or `veeam-aiops-mcp`): **27 tools** (19 read, 8 write), every one wrapped with the bundled `@governed_tool` harness.
 - **Diagnostics / RCA** (read-only): `diagnose job-failures` triages recent job sessions — flags every Failed/Warning run and categorizes the likely cause (repository full, source/guest unreachable, credential/VSS failure, retry exhaustion), citing the session result + matched error substring; `diagnose repo-capacity` flags repositories under the free-space thresholds (<15% warn, <10% critical). Both cite the measured number that tripped each finding, worst-first.
 - **Encrypted credentials**: passwords live in an encrypted store `~/.veeam-aiops/secrets.enc` (Fernet + scrypt) — **never plaintext on disk**. Unlock with a master password from `VEEAM_AIOPS_MASTER_PASSWORD` (MCP/CI) or an interactive prompt (CLI).
 - **Reversibility**: write ops with a clean inverse (job start/stop/retry, enable/disable) record an inverse undo descriptor; the irreversible VM restore declares none and is tagged `high` risk.
