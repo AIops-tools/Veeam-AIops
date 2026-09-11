@@ -65,22 +65,28 @@ def _key(item: Any) -> Any:
     return ("obj", id(item))
 
 
-def fetch_all(
+def _collect(
     conn: Any,
     path: str,
     *,
-    params: dict | None = None,
-    headers: dict | None = None,
-    page_size: int = PAGE_SIZE,
-    max_pages: int = MAX_PAGES,
+    want: int | None,
+    params: dict | None,
+    headers: dict | None,
+    page_size: int,
+    max_pages: int,
+    lazy: bool,
 ) -> list[dict]:
-    """Return every item of a VBR collection, following ``skip``/``limit``."""
+    """Page until ``want`` items (``None``: all of them) or the server's total."""
     collected: list[dict] = []
     seen: set = set()
     skip = 0
     total: int | None = None
-    for _ in range(max_pages):
-        kwargs: dict[str, Any] = {"params": {**(params or {}), "skip": skip, "limit": page_size}}
+    for page_no in range(max_pages):
+        query = dict(params or {})
+        if not (lazy and page_no == 0):
+            remaining = page_size if want is None else want - len(collected)
+            query.update(skip=skip, limit=min(page_size, remaining))
+        kwargs: dict[str, Any] = {"params": query}
         if headers:
             kwargs["headers"] = headers
         data = conn.get(path, **kwargs)
@@ -90,8 +96,10 @@ def fetch_all(
         seen.update(_key(item) for item in fresh)
         collected.extend(fresh)
         skip += len(batch)
-        if total is None or len(collected) >= total:
-            return collected
+        if total is None or len(collected) >= total or (
+            want is not None and len(collected) >= want
+        ):
+            return collected if want is None else collected[:want]
         if not batch:
             raise IncompleteCollection(
                 f"{path}: the server reported {total} items but stopped returning "
@@ -108,3 +116,54 @@ def fetch_all(
         f"refusing to return a partial result. Narrow the query (a name filter, "
         f"or a single backup)."
     )
+
+
+def fetch_all(
+    conn: Any,
+    path: str,
+    *,
+    params: dict | None = None,
+    headers: dict | None = None,
+    page_size: int = PAGE_SIZE,
+    max_pages: int = MAX_PAGES,
+    lazy: bool = False,
+) -> list[dict]:
+    """Return every item of a VBR collection, following ``skip``/``limit``.
+
+    ``lazy=True`` sends no paging parameters on the first request, for an
+    endpoint whose pinned revision does not declare them (``/backups/{id}/
+    objects`` under 1.1-rev1); paging follows only if the server's own
+    pagination block shows there is more than it returned.
+    """
+    return _collect(conn, path, want=None, params=params, headers=headers,
+                    page_size=page_size, max_pages=max_pages, lazy=lazy)
+
+
+def fetch_first(
+    conn: Any,
+    path: str,
+    count: int,
+    *,
+    params: dict | None = None,
+    headers: dict | None = None,
+    page_size: int = PAGE_SIZE,
+    max_pages: int = MAX_PAGES,
+) -> list[dict]:
+    """The first ``count`` items in the server's order — never reading further.
+
+    For histories too large to return whole (restore points, sessions): ask for
+    ``limit + 1`` and a caller can *measure* truncation instead of guessing it
+    from "exactly limit came back".
+    """
+    return _collect(conn, path, want=count, params=params, headers=headers,
+                    page_size=page_size, max_pages=max_pages, lazy=False)
+
+
+HISTORY_LIMIT_MAX = 1000
+
+
+def history_limit(value: Any, ceiling: int = HISTORY_LIMIT_MAX) -> int:
+    """Validate a caller's ``limit`` for an enveloped history read."""
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= ceiling:
+        raise ValueError(f"limit must be an integer between 1 and {ceiling}.")
+    return value

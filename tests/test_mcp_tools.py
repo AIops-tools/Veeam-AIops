@@ -322,9 +322,10 @@ def test_session_list_hits_sessions_endpoint(monkeypatch, fake_veeam):
         }
     )
     _wire(monkeypatch, sessions_tools, fake)
-    rows = sessions_tools.session_list()
+    out = sessions_tools.session_list()
     assert fake.paths("GET") == ["/api/v1/sessions"]
-    assert rows[0]["id"] == "s1" and rows[0]["state"] == "Working"
+    assert out["sessions"][0]["id"] == "s1" and out["sessions"][0]["state"] == "Working"
+    assert out["returned"] == 1 and out["truncated"] is False
 
 
 @pytest.mark.unit
@@ -488,12 +489,12 @@ def test_restore_list_points_passes_backup_filter_as_query_param(monkeypatch, fa
         }
     )
     _wire(monkeypatch, restore_tools, fake)
-    rows = restore_tools.restore_list_points(backup_id="b1")
+    out = restore_tools.restore_list_points(backup_id="b1")
     method, path, kwargs = fake.calls[0]
     assert (method, path) == ("GET", "/api/v1/restorePoints")
     # Filter travels as an httpx query param (httpx handles its encoding).
-    assert kwargs["params"] == {"backupIdFilter": "b1"}
-    assert rows[0]["id"] == "rp1"
+    assert kwargs["params"]["backupIdFilter"] == "b1"
+    assert out["restorePoints"][0]["id"] == "rp1"
 
 
 @pytest.mark.unit
@@ -592,3 +593,24 @@ def test_storage_ranking_tool_returns_an_envelope(monkeypatch):
     out = backups_tools.backup_storage_ranking(limit=1)
     assert set(out) >= {"objects", "returned", "limit", "truncated"}
     assert out["objects"][0]["rank"] == 1 and out["truncated"] is True
+
+
+# ─── session window (list reads past the first page) ─────────────────────────
+
+
+@pytest.mark.unit
+def test_job_failure_rca_says_when_older_sessions_were_not_analysed(monkeypatch):
+    from footprint_fixtures import RouteFake
+
+    from mcp_server.tools import diagnostics as diag_tools
+
+    rows = [{"id": f"s{i}", "name": f"job-{i}", "state": "Stopped",
+             "result": {"result": "Failed" if i == 0 else "Success"}} for i in range(150)]
+    fake = RouteFake({"/api/v1/sessions": rows, "/api/v1/sessions/s0/logs": {"records": []}},
+                     build=None)
+    _wire(monkeypatch, diag_tools, fake)
+    out = diag_tools.job_failure_rca(limit=100)
+    assert out["sessionsAnalyzed"] == 100 and out["sessionsTruncated"] is True
+    assert out["failures"] == 1
+    params = fake.calls_to("/api/v1/sessions")[0][2]
+    assert params["orderColumn"] == "CreationTime" and params["orderAsc"] is False

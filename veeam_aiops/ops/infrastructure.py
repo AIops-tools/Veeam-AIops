@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from veeam_aiops.governance import opt_str
+from veeam_aiops.ops._paging import fetch_all
 
 _MANAGED_SERVERS = "/api/v1/backupInfrastructure/managedServers"
 _PROXIES = "/api/v1/backupInfrastructure/proxies"
@@ -29,10 +30,8 @@ def _proxy_host(proxy: dict) -> object | None:
 
 def list_managed_servers(conn: Any) -> list[dict]:
     """[READ] List managed servers (id, name, type, description)."""
-    data = conn.get(_MANAGED_SERVERS)
-    items = data.get("data", data) if isinstance(data, dict) else data
     out: list[dict] = []
-    for s in items or []:
+    for s in fetch_all(conn, _MANAGED_SERVERS):
         out.append(
             {
                 "id": opt_str(s.get("id"), 64),
@@ -46,10 +45,8 @@ def list_managed_servers(conn: Any) -> list[dict]:
 
 def list_proxies(conn: Any) -> list[dict]:
     """[READ] List backup proxies (id, name, type, host/server)."""
-    data = conn.get(_PROXIES)
-    items = data.get("data", data) if isinstance(data, dict) else data
     out: list[dict] = []
-    for p in items or []:
+    for p in fetch_all(conn, _PROXIES):
         out.append(
             {
                 "id": opt_str(p.get("id"), 64),

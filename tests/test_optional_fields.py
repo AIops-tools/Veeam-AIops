@@ -54,7 +54,7 @@ def test_opt_str_accepts_non_string_values():
 def test_ops_report_absent_fields_as_none(fake_veeam):
     """A session row with no name/state/result reports null, not ''."""
     fake = fake_veeam(responses={"/api/v1/sessions": {"data": [{"id": "sess-1"}]}})
-    rows = session_ops.list_sessions(fake)
+    rows = session_ops.list_sessions(fake)["sessions"]
     assert rows[0]["id"] == "sess-1"
     assert rows[0]["name"] is None
     assert rows[0]["state"] is None
@@ -67,7 +67,7 @@ def test_ops_keep_empty_string_when_source_is_empty(fake_veeam):
     fake = fake_veeam(
         responses={"/api/v1/sessions": {"data": [{"id": "sess-1", "name": ""}]}}
     )
-    assert session_ops.list_sessions(fake)[0]["name"] == ""
+    assert session_ops.list_sessions(fake)["sessions"][0]["name"] == ""
 
 
 @pytest.mark.unit
@@ -78,7 +78,7 @@ def test_ops_never_drop_the_key_itself(fake_veeam):
     field was even considered.
     """
     fake = fake_veeam(responses={"/api/v1/sessions": {"data": [{}]}})
-    row = session_ops.list_sessions(fake)[0]
+    row = session_ops.list_sessions(fake)["sessions"][0]
     for key in ("id", "name", "type", "state", "result"):
         assert key in row, f"{key} must be present even when the source omitted it"
 
@@ -97,7 +97,7 @@ def test_nested_session_result_is_unwrapped_and_absence_preserved(fake_veeam):
             }
         }
     )
-    rows = session_ops.list_sessions(fake)
+    rows = session_ops.list_sessions(fake)["sessions"]
     assert rows[0]["result"] == "Failed"
     assert rows[1]["result"] == "Success"
     assert rows[2]["result"] is None

@@ -19,7 +19,8 @@ used, and currently-running sessions. Call this first to triage an environment.
 | `job_failure_rca` | R | low | ~200–600 |
 | `repository_capacity_rca` | R | low | ~150 |
 
-`job_failure_rca` scans recent job sessions, flags every Failed/Warning run, and
+`job_failure_rca` scans the newest `limit` sessions (default 100, newest first by
+`creationTime`; `sessionsTruncated` says older ones exist), flags every Failed/Warning run, and
 categorizes the likely cause (repository full, source/guest unreachable,
 credential/VSS failure, retry exhaustion) from the failing log records — each
 finding cites the session result + matched error substring, worst-first.
@@ -49,7 +50,13 @@ capture the job's prior status/lastResult for context.
 | `restore_list_points` | R | low | — | 150–800 |
 | `start_vm_restore` | W | high | **none — irreversible** | ~40 |
 
-REST endpoints: `GET /api/v1/restorePoints` (optional `backupIdFilter`),
+`restore_list_points` returns the newest `limit` points (default 100, max 1000) as
+`{"restorePoints", "returned", "limit", "truncated", "order"}` — an estate's restore
+points are far too many to return whole. With `backup_id`, a point from another
+backup coming back means the server ignored the filter, and that is refused.
+
+REST endpoints: `GET /api/v1/restorePoints` (`orderColumn=CreationTime&orderAsc=false`,
+optional `backupIdFilter`),
 `GET /api/v1/restorePoints/{id}` (to name what a restore would overwrite),
 `POST /api/v1/restore/vm`. `start_vm_restore` is a documented skeleton: the
 exact restore endpoint and payload vary by restore type and Veeam version.
@@ -185,6 +192,22 @@ REST endpoints: `GET /api/v1/sessions`, `GET /api/v1/sessions/{id}`,
 `GET /api/v1/sessions/{id}/logs`, `POST /api/v1/sessions/{id}/stop`. Sessions
 are how Veeam exposes async job/restore progress — poll these instead of
 re-issuing the originating operation; read `session_log` to see *why* one failed.
+`session_list` returns the newest `limit` sessions (default 100, max 1000) as
+`{"sessions", "returned", "limit", "truncated", "order"}`, sorted by the server
+(`orderColumn=CreationTime&orderAsc=false`), so "recent" is explicit.
+
+### List reads and paging
+
+The VBR REST API pages its collections and, from revision 1.3, returns 200 items
+per page unless asked otherwise. Inventory reads (`backup_list`,
+`backup_object_list`, `job_list`, `repository_list`, `repository_state`,
+`managed_server_list`, `proxy_list`) page to the end; `overview` and
+`repository_capacity_rca` therefore see every repository. The pager advances by
+what the server actually returned, de-duplicates by id, and raises instead of
+returning a partial list if the server stops short or repeats a page.
+`backup_object_list` sends no paging parameters on its first request (the pinned
+revision 1.1-rev1 declares none for that endpoint) and pages only if the server's
+pagination block shows more.
 
 ## Undo (2 — 1 read, 1 write)
 

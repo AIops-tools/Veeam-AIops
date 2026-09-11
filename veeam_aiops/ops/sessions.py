@@ -13,6 +13,11 @@ from typing import Any
 
 from veeam_aiops.connection import _seg
 from veeam_aiops.governance import opt_str, sanitize
+from veeam_aiops.ops._paging import fetch_first, history_limit
+
+DEFAULT_LIMIT = 100
+# Newest first: both orderColumn/orderAsc exist from revision 1.1-rev1 on.
+_NEWEST_FIRST = {"orderColumn": "CreationTime", "orderAsc": False}
 
 
 def _result_value(s: dict) -> object | None:
@@ -37,11 +42,23 @@ def _session_summary(s: dict) -> dict:
     }
 
 
-def list_sessions(conn: Any) -> list[dict]:
-    """[READ] List recent sessions with id, name, type, state, result."""
-    data = conn.get("/api/v1/sessions")
-    items = data.get("data", data) if isinstance(data, dict) else data
-    return [_session_summary(s) for s in (items or [])]
+def list_sessions(conn: Any, limit: int = DEFAULT_LIMIT) -> dict:
+    """[READ] The newest ``limit`` sessions with id, name, type, state, result.
+
+    Returns ``{"sessions", "returned", "limit", "truncated", "order"}``. "Recent"
+    is explicit: the server sorts by ``creationTime`` descending, and
+    ``truncated`` (measured by asking for one more) says older sessions exist
+    beyond the window.
+    """
+    limit = history_limit(limit)
+    rows = fetch_first(conn, "/api/v1/sessions", limit + 1, params=dict(_NEWEST_FIRST))
+    return {
+        "sessions": [_session_summary(s) for s in rows[:limit]],
+        "returned": min(len(rows), limit),
+        "limit": limit,
+        "truncated": len(rows) > limit,
+        "order": "newest first (creationTime)",
+    }
 
 
 def get_session(conn: Any, session_id: str) -> dict:

@@ -29,16 +29,20 @@ console = Console()
 def restore_list_points(
     target: TargetOption = None,
     backup_id: str = typer.Option(None, "--backup-id", help="Filter to one backup's points"),
+    limit: int = typer.Option(100, "--limit", help="Newest points to show (1-1000)."),
 ) -> None:
-    """List available restore points (optionally filtered by backup)."""
+    """List the newest restore points (optionally filtered by backup)."""
     conn, _ = get_connection(target)
-    rows = restore.list_restore_points(conn, backup_id)
-    table = Table(title="Veeam Restore Points")
+    out = restore.list_restore_points(conn, backup_id, limit=limit)
+    table = Table(title="Veeam Restore Points (newest first)")
     for col in ("id", "name", "creationTime", "type"):
         table.add_column(col)
-    for r in rows:
+    for r in out["restorePoints"]:
         table.add_row(r["id"], r["name"], r["creationTime"], r["type"])
     console.print(table)
+    if out["truncated"]:
+        console.print(f"[yellow]Showing the newest {out['returned']}; older points "
+                      f"exist (raise --limit or use --backup-id).[/]")
 
 
 @restore_app.command("start")

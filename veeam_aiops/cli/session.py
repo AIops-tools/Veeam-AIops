@@ -27,16 +27,22 @@ console = Console()
 
 @session_app.command("list")
 @cli_errors
-def session_list(target: TargetOption = None) -> None:
-    """List recent sessions (id, name, type, state, result)."""
+def session_list(
+    target: TargetOption = None,
+    limit: int = typer.Option(100, "--limit", help="Newest sessions to show (1-1000)."),
+) -> None:
+    """List the newest sessions (id, name, type, state, result)."""
     conn, _ = get_connection(target)
-    rows = sessions.list_sessions(conn)
-    table = Table(title="Veeam Sessions")
+    out = sessions.list_sessions(conn, limit=limit)
+    table = Table(title="Veeam Sessions (newest first)")
     for col in ("id", "name", "type", "state", "result"):
         table.add_column(col)
-    for r in rows:
+    for r in out["sessions"]:
         table.add_row(r["id"], r["name"], r["type"], r["state"], r["result"])
     console.print(table)
+    if out["truncated"]:
+        console.print(f"[yellow]Showing the newest {out['returned']}; older sessions "
+                      f"exist (raise --limit).[/]")
 
 
 @session_app.command("get")

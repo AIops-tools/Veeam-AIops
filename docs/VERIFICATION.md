@@ -45,6 +45,16 @@ veeam-aiops init      # encrypted secret store, TLS verify on by default
       VSS failure / retry exhaustion).
 - [ ] `veeam-aiops diagnose repo-capacity` → the reported free% matches the
       console's repository free space.
+- [ ] **Paging** (needs a collection over 200 items — restore points get there
+      fastest): `restore list-points --limit 300` returns 300 with `truncated`
+      true, newest first, matching the console's order; `job list` /
+      `repository list` on an estate with more than 200 of either returns all of
+      them. Record what the server does under the pinned `x-api-version:
+      1.1-rev1` with no `limit` — that default is undocumented.
+- [ ] `backup objects <id>` on a job with more than 200 VMs returns all of them
+      (its first request carries no `skip`/`limit`).
+- [ ] `session list` is newest first and `diagnose job-failures` reports
+      `sessionsTruncated` when older sessions exist.
 
 ### 2b. Backup storage footprint (added 0.12.0 — built from Veeam's OpenAPI spec, never run live)
 Needs VBR 12.3+. Ground truth is the VBR console: *Backups → Disk → (job) →

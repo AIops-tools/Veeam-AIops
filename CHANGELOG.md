@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+### Changed (BREAKING)
+- **`restore_list_points` and `session_list` return an envelope instead of a
+  bare list**: `{"restorePoints"|"sessions": [...], "returned", "limit",
+  "truncated", "order"}`, newest first (`orderColumn=CreationTime`,
+  `orderAsc=false`), with a new `limit` (default 100, max 1000). `truncated` is
+  measured by asking for one more item. The CLI `restore list-points` and
+  `session list` gained `--limit` and say when older items exist.
+- `job_failure_rca` / `diagnose job-failures` take `limit` and report
+  `sessionsTruncated`; `overview`'s session block reports its window (`limit`,
+  `truncated`, `order`) — `running` covers that window.
+
+### Fixed
+- **List reads no longer stop at the server's first page.** Every list read took
+  one response, and from REST revision 1.3 (VBR 13) the server returns 200 items
+  per page by default — so a job, repository, proxy or backup past the 200th was
+  silently missing, including from `overview` and `repository_capacity_rca`
+  (a repository past the first page was never capacity-checked). Inventory
+  reads now page to the end and refuse rather than return a partial list;
+  histories use the envelope above. What the pinned revision 1.1-rev1 does by
+  default is undocumented, so the reads now page explicitly either way.
+- `restore_list_points(backup_id=...)` refuses when the server returns points of
+  another backup (the filter was ignored) instead of presenting them as the
+  requested backup's.
+- The agent guardrails said every other read "returns everything VBR returned";
+  that was not true until this release, and now says what each read does.
+
 ## v0.12.0 — 2026-09-11
 
 ### Added

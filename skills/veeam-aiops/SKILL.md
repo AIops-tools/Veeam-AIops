@@ -149,12 +149,12 @@ veeam-aiops job stop <job_id> [--dry-run]              # double confirm
 veeam-aiops job retry <job_id>
 veeam-aiops job enable <job_id>
 veeam-aiops job disable <job_id>
-veeam-aiops restore list-points [--backup-id <id>]
+veeam-aiops restore list-points [--backup-id <id>] [--limit 100]
 veeam-aiops restore start --restore-point-id <id> [--dry-run]   # double confirm
 veeam-aiops repository list
 veeam-aiops repository get <repository_id>
 veeam-aiops repository state                           # capacity / free / used%
-veeam-aiops session list
+veeam-aiops session list [--limit 100]
 veeam-aiops session get <session_id>
 veeam-aiops session log <session_id>
 veeam-aiops session stop <session_id> [--dry-run]     # double confirm

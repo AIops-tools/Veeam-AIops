@@ -288,9 +288,10 @@ def test_restore_list_points_no_filter(monkeypatch, fake_veeam):
     result = runner.invoke(app, ["restore", "list-points"])
     assert result.exit_code == 0, result.output
     assert fake.paths("GET") == ["/api/v1/restorePoints"]
-    # no --backup-id -> params is None (not a backupIdFilter dict)
+    # newest first, one extra to measure truncation, and no backupIdFilter
     _, _, kwargs = fake.calls[0]
-    assert kwargs.get("params") is None
+    assert kwargs["params"] == {"orderColumn": "CreationTime", "orderAsc": False,
+                                "skip": 0, "limit": 101}
     assert "rp-1" in result.output
 
 
@@ -303,7 +304,8 @@ def test_restore_list_points_with_backup_filter(monkeypatch, fake_veeam):
     result = runner.invoke(app, ["restore", "list-points", "--backup-id", "bk-9"])
     assert result.exit_code == 0, result.output
     _, _, kwargs = fake.calls[0]
-    assert kwargs["params"] == {"backupIdFilter": "bk-9"}
+    assert kwargs["params"]["backupIdFilter"] == "bk-9"
+    assert kwargs["params"]["orderColumn"] == "CreationTime"
 
 
 # ─── overview ────────────────────────────────────────────────────────────────
@@ -473,3 +475,31 @@ def test_backup_ranking_json_is_the_payload(monkeypatch):
     result = runner.invoke(app, ["backup", "ranking", "--json"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["objects"][0]["name"] == "VM01"
+
+
+# ─── history windows ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_session_list_says_when_older_sessions_exist(monkeypatch):
+    from footprint_fixtures import RouteFake
+
+    from veeam_aiops.cli import app
+
+    rows = [{"id": f"s{i}", "name": f"job-{i}", "state": "Stopped"} for i in range(30)]
+    fake = RouteFake({"/api/v1/sessions": rows}, build=None)
+    _wire(monkeypatch, "session", fake)
+    result = runner.invoke(app, ["session", "list", "--limit", "10"])
+    assert result.exit_code == 0, result.output
+    assert "older sessions exist" in result.output
+    assert fake.calls_to("/api/v1/sessions")[0][2]["limit"] == 11
+
+
+@pytest.mark.unit
+def test_restore_list_points_bad_limit_exits_1(monkeypatch, fake_veeam):
+    from veeam_aiops.cli import app
+
+    _wire(monkeypatch, "restore", fake_veeam(responses={"/api/v1/restorePoints": {"data": []}}))
+    result = runner.invoke(app, ["restore", "list-points", "--limit", "0"])
+    assert result.exit_code == 1
+    assert "limit must be" in result.output

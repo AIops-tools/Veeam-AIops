@@ -32,6 +32,11 @@ from typing import Any
 
 from veeam_aiops.connection import _seg
 from veeam_aiops.governance import opt_str, sanitize
+from veeam_aiops.ops._paging import fetch_first, history_limit
+
+DEFAULT_LIMIT = 100
+# Newest first: both orderColumn/orderAsc exist from revision 1.1-rev1 on.
+_NEWEST_FIRST = {"orderColumn": "CreationTime", "orderAsc": False}
 
 
 class SelfLockout(ValueError):  # noqa: N818 — teaching error, reads as a statement
@@ -94,17 +99,40 @@ def _self_target_match(conn: Any, vm_name: str | None) -> str | None:
     return None
 
 
-def list_restore_points(conn: Any, backup_id: str | None = None) -> list[dict]:
-    """[READ] List restore points (id, name, creation time, type).
+def list_restore_points(
+    conn: Any, backup_id: str | None = None, limit: int = DEFAULT_LIMIT
+) -> dict:
+    """[READ] The newest ``limit`` restore points (id, name, creation time, type).
 
-    When ``backup_id`` is given, filter to restore points of that backup via the
-    documented ``backupIdFilter`` query parameter (preview — server-side filter
-    support varies by Veeam version; falls back to all points if unsupported).
+    Returns ``{"restorePoints", "returned", "limit", "truncated", "order"}``;
+    ``truncated`` is measured by asking for one more point than ``limit``. A
+    whole estate's restore points are far too many to return at once, so this
+    is a window, newest first, and says when there is more.
+
+    When ``backup_id`` is given, the server filters by ``backupIdFilter``. A
+    point from another backup coming back means the server ignored the filter,
+    and that is refused rather than returned as if it belonged.
     """
-    params = {"backupIdFilter": backup_id} if backup_id else None
-    data = conn.get("/api/v1/restorePoints", params=params)
-    items = data.get("data", data) if isinstance(data, dict) else data
-    return [_restore_point_summary(rp) for rp in (items or [])]
+    limit = history_limit(limit)
+    params = dict(_NEWEST_FIRST)
+    if backup_id:
+        params["backupIdFilter"] = backup_id
+    rows = fetch_first(conn, "/api/v1/restorePoints", limit + 1, params=params)
+    if backup_id:
+        foreign = [r for r in rows if r.get("backupId") and str(r["backupId"]) != str(backup_id)]
+        if foreign:
+            raise ValueError(
+                f"The server returned restore points of another backup for "
+                f"backupIdFilter={backup_id!r}, so it is not applying that filter; "
+                f"refusing to present them as this backup's points."
+            )
+    return {
+        "restorePoints": [_restore_point_summary(rp) for rp in rows[:limit]],
+        "returned": min(len(rows), limit),
+        "limit": limit,
+        "truncated": len(rows) > limit,
+        "order": "newest first (creationTime)",
+    }
 
 
 def _refuse_if_self_restore(conn: Any, restore_point_id: str, vm_name: str | None) -> None:

@@ -9,14 +9,18 @@ from veeam_aiops.ops import sessions as ops
 
 @mcp.tool()
 @governed_tool(risk_level="low")
-@tool_errors("list")
-def session_list(target: Optional[str] = None) -> list:
-    """[READ] List recent sessions with id, name, type, state, result.
+@tool_errors("dict")
+def session_list(limit: int = 100, target: Optional[str] = None) -> dict:
+    """[READ] The newest sessions with id, name, type, state, result, newest first.
+
+    Returns {"sessions": [...], "returned", "limit", "truncated", "order"}.
+    truncated=true means older sessions exist beyond this window.
 
     Args:
+        limit: Sessions to return, 1-1000 (default 100).
         target: Veeam target name from config; omit to use the default.
     """
-    return ops.list_sessions(_get_connection(target))
+    return ops.list_sessions(_get_connection(target), limit=limit)
 
 
 @mcp.tool()

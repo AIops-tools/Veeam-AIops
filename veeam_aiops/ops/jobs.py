@@ -13,6 +13,7 @@ from typing import Any
 
 from veeam_aiops.connection import _seg
 from veeam_aiops.governance import opt_str, sanitize
+from veeam_aiops.ops._paging import fetch_all
 
 
 def _job_summary(job: dict) -> dict:
@@ -46,9 +47,7 @@ def _job_state(conn: Any, job_id: str) -> dict:
 
 def list_jobs(conn: Any) -> list[dict]:
     """[READ] List backup jobs with id, name, type, status, lastResult."""
-    data = conn.get("/api/v1/jobs")
-    items = data.get("data", data) if isinstance(data, dict) else data
-    return [_job_summary(j) for j in (items or [])]
+    return [_job_summary(j) for j in fetch_all(conn, "/api/v1/jobs")]
 
 
 def get_job(conn: Any, job_id: str) -> dict:

@@ -124,7 +124,10 @@ def _first_error(errors: list[str | None]) -> str:
 
 
 def job_failure_findings(
-    session_rows: list[dict], error_index: dict[str, list[str | None]] | None = None
+    session_rows: list[dict],
+    error_index: dict[str, list[str | None]] | None = None,
+    *,
+    sessions_truncated: bool | None = None,
 ) -> dict:
     """[ANALYSIS] Flag Failed/Warning backup-job sessions and categorize the cause.
 
@@ -135,7 +138,9 @@ def job_failure_findings(
             ``ops.sessions.get_session_log``) used to classify the cause and cite
             the measured error substring.
 
-    Returns the worst-first ``findings`` list plus counts.
+    Returns the worst-first ``findings`` list plus counts. ``sessionsTruncated``
+    carries the caller's window flag through (``None`` when the caller did not
+    say): true means older sessions exist that were not analysed.
     """
     idx = error_index or {}
     findings: list[dict] = []
@@ -157,6 +162,7 @@ def job_failure_findings(
     return {
         "findings": _rank(findings),
         "sessionsAnalyzed": len(session_rows),
+        "sessionsTruncated": sessions_truncated,
         "failures": len(findings),
     }
 

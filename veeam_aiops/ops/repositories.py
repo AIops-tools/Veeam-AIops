@@ -6,6 +6,7 @@ from typing import Any
 
 from veeam_aiops.connection import _seg
 from veeam_aiops.governance import opt_str
+from veeam_aiops.ops._paging import fetch_all
 
 _REPOS = "/api/v1/backupInfrastructure/repositories"
 _REPO_STATES = "/api/v1/backupInfrastructure/repositories/states"
@@ -13,10 +14,8 @@ _REPO_STATES = "/api/v1/backupInfrastructure/repositories/states"
 
 def list_repositories(conn: Any) -> list[dict]:
     """[READ] List backup repositories with id, name, type, and path."""
-    data = conn.get(_REPOS)
-    items = data.get("data", data) if isinstance(data, dict) else data
     out: list[dict] = []
-    for repo in items or []:
+    for repo in fetch_all(conn, _REPOS):
         out.append(
             {
                 "id": opt_str(repo.get("id"), 64),
@@ -65,11 +64,10 @@ def _capacity_fields(row: dict) -> dict:
 def _state_for(conn: Any, repository_id: str) -> dict:
     """Best-effort lookup of one repository's state row by id."""
     try:
-        data = conn.get(_REPO_STATES)
+        rows = fetch_all(conn, _REPO_STATES)
     except Exception:  # noqa: BLE001 — advisory capacity context only
         return {}
-    items = data.get("data", data) if isinstance(data, dict) else data
-    for row in items or []:
+    for row in rows:
         if str(row.get("id", "")) == str(repository_id):
             return _capacity_fields(row)
     return {}
@@ -77,10 +75,8 @@ def _state_for(conn: Any, repository_id: str) -> dict:
 
 def repository_state(conn: Any) -> list[dict]:
     """[READ] Capacity summary for every repository (capacity/free/used/used%)."""
-    data = conn.get(_REPO_STATES)
-    items = data.get("data", data) if isinstance(data, dict) else data
     out: list[dict] = []
-    for row in items or []:
+    for row in fetch_all(conn, _REPO_STATES):
         entry = {
             "id": opt_str(row.get("id"), 64),
             "name": opt_str(row.get("name"), 128),

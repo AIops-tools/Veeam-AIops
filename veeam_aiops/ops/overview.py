@@ -49,16 +49,22 @@ def _repo_health(conn: Any) -> dict:
 
 
 def _session_health(conn: Any) -> dict:
+    """Running sessions among the newest ones — the window is stated, not implied.
+
+    A session started long ago and still running falls outside the window when
+    ``truncated`` is true; ``running`` covers the window only.
+    """
     try:
-        rows = session_ops.list_sessions(conn)
+        window = session_ops.list_sessions(conn)
     except Exception as exc:  # noqa: BLE001 — report as partial
         return {"error": str(exc)[:200]}
     running = [
         {"id": r.get("id"), "name": r.get("name")}
-        for r in rows
+        for r in window["sessions"]
         if str(r.get("state") or "").lower() in _RUNNING_STATES
     ]
-    return {"recent": len(rows), "running": running}
+    return {"recent": window["returned"], "limit": window["limit"],
+            "truncated": window["truncated"], "order": window["order"], "running": running}
 
 
 def health_overview(conn: Any) -> dict:

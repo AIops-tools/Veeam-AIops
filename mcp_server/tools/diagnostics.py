@@ -36,26 +36,30 @@ def _failing_log_titles(conn: Any, session_id: str) -> list[str]:
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def job_failure_rca(target: Optional[str] = None) -> dict:
+def job_failure_rca(limit: int = 100, target: Optional[str] = None) -> dict:
     """[READ] Triage recent backup-job sessions: flag every Failed/Warning run.
 
-    Pulls the recent sessions, fetches the failing log records for each bad run,
-    and categorizes the likely cause (repository full, source/guest unreachable,
-    credential/VSS failure, retry exhaustion) worst-first, citing the session
-    result and the matched error substring for every finding.
+    Pulls the newest `limit` sessions, fetches the failing log records for each
+    bad run, and categorizes the likely cause (repository full, source/guest
+    unreachable, credential/VSS failure, retry exhaustion) worst-first, citing
+    the session result and the matched error substring for every finding.
+    sessionsTruncated=true means older sessions were not analysed.
 
     Args:
+        limit: Newest sessions to analyse, 1-1000 (default 100).
         target: Veeam target name from config; omit to use the default.
     """
     conn = _get_connection(target)
-    session_rows = session_ops.list_sessions(conn)
+    window = session_ops.list_sessions(conn, limit=limit)
+    session_rows = window["sessions"]
     error_index: dict[str, list[str]] = {}
     for s in session_rows:
         if str(s.get("result") or "").lower() in _FAIL_RESULTS:
             sid = str(s.get("id") or "")
             if sid:
                 error_index[sid] = _failing_log_titles(conn, sid)
-    return diag.job_failure_findings(session_rows, error_index)
+    return diag.job_failure_findings(session_rows, error_index,
+                                     sessions_truncated=window["truncated"])
 
 
 @mcp.tool()

@@ -17,20 +17,23 @@ from veeam_aiops.ops import restore as ops
 
 @mcp.tool()
 @governed_tool(risk_level="low")
-@tool_errors("list")
+@tool_errors("dict")
 def restore_list_points(
-    backup_id: Optional[str] = None, target: Optional[str] = None
-) -> list:
-    """[READ] List restore points (id, name, creationTime, type).
+    backup_id: Optional[str] = None, limit: int = 100, target: Optional[str] = None
+) -> dict:
+    """[READ] The newest restore points (id, name, creationTime, type), newest first.
 
-    Pass backup_id to filter to one backup's restore points (preview — server
-    filter support varies by Veeam version).
+    Returns {"restorePoints": [...], "returned", "limit", "truncated", "order"}.
+    truncated=true means older points exist beyond this window — raise limit or
+    filter by backup_id; do not read a short list as "that is all there is".
+    With backup_id, a server that ignores the filter is refused, not trusted.
 
     Args:
         backup_id: Optional Veeam backup id (see backup_list) to filter by.
+        limit: Points to return, 1-1000 (default 100).
         target: Veeam target name from config; omit to use the default.
     """
-    return ops.list_restore_points(_get_connection(target), backup_id)
+    return ops.list_restore_points(_get_connection(target), backup_id, limit=limit)
 
 
 @mcp.tool()
