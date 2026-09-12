@@ -67,7 +67,7 @@ The same bundle is published on [ClawHub](https://clawhub.ai/plugins), where one
 install delivers the skill and its MCP server together:
 
 ```bash
-openclaw plugins install clawhub:@aiops-tools/veeam-aiops
+openclaw plugins install clawhub:@zw008/veeam-aiops
 openclaw skills info veeam-aiops          # expect: Visible to model: yes
 ```
 

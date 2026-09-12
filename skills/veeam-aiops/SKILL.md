@@ -60,7 +60,7 @@ veeam-aiops doctor
 Or as an OpenClaw plugin, which installs this skill and its MCP server together:
 
 ```bash
-openclaw plugins install clawhub:@aiops-tools/veeam-aiops
+openclaw plugins install clawhub:@zw008/veeam-aiops
 openclaw skills info veeam-aiops          # expect: Visible to model: yes
 ```
 
