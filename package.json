@@ -1,7 +1,7 @@
 {
   "name": "@aiops-tools/veeam-aiops",
   "version": "0.15.3",
-  "description": "Governed Veeam Backup & Replication ops \u2014 27 MCP tools with audit, budget, undo guards.",
+  "description": "Governed Veeam Backup & Replication ops — 27 MCP tools with audit, budget, undo guards.",
   "private": true,
   "license": "MIT",
   "homepage": "https://github.com/AIops-tools/Veeam-AIops",
