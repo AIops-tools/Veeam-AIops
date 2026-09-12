@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.15.0 — 2026-09-12
 ### Added
 - **Per-target `timeout` (seconds) in `config.yaml`.** The 30 s request budget
   was hardcoded with no override. On a large estate `/jobs` and `/sessions` can
