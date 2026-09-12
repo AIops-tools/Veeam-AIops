@@ -40,7 +40,10 @@ def restore_list_points(
 @governed_tool(risk_level="high")
 @tool_errors("dict")
 def start_vm_restore(
-    restore_point_id: str, dry_run: bool = False, target: Optional[str] = None
+    restore_point_id: str,
+    dry_run: bool = False,
+    acknowledge_unresolved: bool = False,
+    target: Optional[str] = None,
 ) -> dict:
     """[WRITE] Start a VM restore from a restore point. IRREVERSIBLE — no undo token.
 
@@ -52,18 +55,25 @@ def start_vm_restore(
     Refuses when that VM name matches the configured VBR host — with no target
     mapping this is a restore-to-original, so it would overwrite the Veeam
     server serving this API. The name check is a safety net, not a proof (a VM
-    display name is not a hostname) and it fails open when the restore point
-    cannot be resolved; read the preview before approving.
+    display name is not a hostname); read the preview before approving.
+
+    Refuses separately when the restore point cannot be READ at all, because
+    then it cannot name the machine it would overwrite — a preview reporting
+    vmName: null is not something to approve. Set acknowledge_unresolved=True
+    only when the user has confirmed the target in the Veeam console.
 
     Args:
         restore_point_id: Restore point id (see restore_list_points).
         dry_run: If True, preview without restoring.
+        acknowledge_unresolved: Proceed even though the restore point could not
+            be read and the target machine is therefore unknown.
         target: Veeam target name from config.
     """
     conn = _get_connection(target)
     if dry_run:
         return {
             "dryRun": True,
-            "wouldRestore": ops.preview_vm_restore(conn, restore_point_id),
+            "wouldRestore": ops.preview_vm_restore(
+                conn, restore_point_id, acknowledge_unresolved),
         }
-    return ops.start_vm_restore(conn, restore_point_id)
+    return ops.start_vm_restore(conn, restore_point_id, acknowledge_unresolved)

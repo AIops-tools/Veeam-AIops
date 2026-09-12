@@ -17,7 +17,12 @@ from __future__ import annotations
 
 import pytest
 
-from veeam_aiops.ops.restore import SelfLockout, preview_vm_restore, start_vm_restore
+from veeam_aiops.ops.restore import (
+    SelfLockout,
+    UnresolvedTarget,
+    preview_vm_restore,
+    start_vm_restore,
+)
 
 _VBR_POINT = {"id": "rp-vbr", "name": "vbr01", "creationTime": "2026-07-19T02:00:00Z"}
 _OTHER_POINT = {"id": "rp-sql", "name": "sql-01", "creationTime": "2026-07-19T03:00:00Z"}
@@ -87,22 +92,68 @@ def test_a_vm_merely_prefixed_with_the_host_name_is_not_blocked(fake_veeam):
     assert conn.paths("POST") == ["/api/v1/restore/vm"]
 
 
-# ── the guard fails open ─────────────────────────────────────────────────────
+# ── an unreadable restore point ──────────────────────────────────────────────
+#
+# This used to proceed. The reasoning was that "unknown" must never be read as
+# "it is the VBR server", which is right about the SELF-LOCKOUT guard and wrong
+# as a decision about the restore: this call is a restore-to-original with no
+# undo, and if the restore point cannot be read the tool cannot say which
+# machine it is about to overwrite. This line's own rule for exactly that shape
+# is that unreadable state is never OK (bug class #13).
+#
+# It refuses rather than silently proceeding, and takes an explicit
+# acknowledgement rather than removing the capability — the same shape MinIO
+# uses for an irreversible COMPLIANCE retention. Erring this way is recoverable
+# (restore from the Veeam console); erring the other way overwrites a machine
+# nobody could name.
 
 
 @pytest.mark.unit
-def test_unresolvable_restore_point_does_not_block(fake_veeam):
-    """Unknown is never 'it is the VBR server' — the restore proceeds."""
+def test_an_unreadable_restore_point_is_refused_not_silently_restored(fake_veeam):
     conn = _conn(fake_veeam, None)  # no canned response: resolution yields {}
-    start_vm_restore(conn, "rp-unknown")  # must not raise
+    with pytest.raises(UnresolvedTarget) as ei:
+        start_vm_restore(conn, "rp-unknown")
+    assert conn.paths("POST") == [], "must refuse BEFORE issuing the restore"
+    msg = str(ei.value)
+    assert "could not be read" in msg, "must say what went wrong"
+    assert "acknowledge_unresolved" in msg, "must name the way forward"
+
+
+@pytest.mark.unit
+def test_a_read_failure_while_resolving_is_refused(fake_veeam):
+    conn = _conn(fake_veeam, _VBR_POINT)
+    conn.get = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("VBR unreachable"))
+    with pytest.raises(UnresolvedTarget):
+        start_vm_restore(conn, "rp-vbr")
+    assert conn.paths("POST") == []
+
+
+@pytest.mark.unit
+def test_an_acknowledged_unreadable_restore_point_still_proceeds(fake_veeam):
+    """The capability is preserved — a disaster is the worst time to be blocked."""
+    conn = _conn(fake_veeam, None)
+    out = start_vm_restore(conn, "rp-unknown", acknowledge_unresolved=True)
+    assert out["action"] == "vm_restore_started"
+    assert out["vmName"] is None
     assert conn.paths("POST") == ["/api/v1/restore/vm"]
 
 
 @pytest.mark.unit
-def test_a_read_failure_while_resolving_does_not_block(fake_veeam):
-    conn = _conn(fake_veeam, _VBR_POINT)
-    conn.get = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("VBR unreachable"))
-    start_vm_restore(conn, "rp-vbr")  # must not raise
+def test_the_preview_refuses_exactly_what_the_restore_refuses(fake_veeam):
+    """A preview that green-lights a call the real one rejects is bug class #10."""
+    conn = _conn(fake_veeam, None)
+    with pytest.raises(UnresolvedTarget):
+        preview_vm_restore(conn, "rp-unknown")
+    out = preview_vm_restore(conn, "rp-unknown", acknowledge_unresolved=True)
+    assert out["resolved"] is False and out["vmName"] is None
+
+
+@pytest.mark.unit
+def test_a_resolvable_restore_point_needs_no_acknowledgement(fake_veeam):
+    """Positive control: the guard must not become a toll on every restore."""
+    conn = _conn(fake_veeam, _OTHER_POINT)
+    out = start_vm_restore(conn, "rp-sql")
+    assert out["action"] == "vm_restore_started"
     assert conn.paths("POST") == ["/api/v1/restore/vm"]
 
 
@@ -164,8 +215,14 @@ def test_preview_resolves_the_guid_to_a_vm_name_and_time(fake_veeam):
 
 @pytest.mark.unit
 def test_preview_says_so_when_it_could_not_resolve(fake_veeam):
-    """An unresolved preview must read as 'unknown', not as 'nothing there'."""
-    out = preview_vm_restore(_conn(fake_veeam, None), "rp-unknown")
+    """An unresolved preview must read as 'unknown', not as 'nothing there'.
+
+    It now takes the acknowledgement to get that far at all — see the refusal
+    tests above — but once past it the payload must still distinguish unknown
+    from empty.
+    """
+    out = preview_vm_restore(_conn(fake_veeam, None), "rp-unknown",
+                             acknowledge_unresolved=True)
     assert out["resolved"] is False
     assert out["vmName"] is None, "missing must be null, never an empty string"
     assert out["creationTime"] is None
@@ -214,10 +271,15 @@ def test_mcp_dry_run_on_any_other_target_still_previews(monkeypatch, fake_veeam,
 
 
 @pytest.mark.unit
-def test_dry_run_fails_open_exactly_as_the_real_call_does(fake_veeam):
-    """Identical fail-open semantics on both paths, or the preview lies again."""
-    out = preview_vm_restore(_conn(fake_veeam, None), "rp-unknown")  # must not raise
-    assert out["resolved"] is False
+def test_dry_run_and_the_real_call_treat_an_unknown_target_identically(fake_veeam):
+    """Both refuse, and both accept the same acknowledgement — or the preview lies."""
+    conn = _conn(fake_veeam, None)
+    with pytest.raises(UnresolvedTarget):
+        preview_vm_restore(conn, "rp-unknown")
+    with pytest.raises(UnresolvedTarget):
+        start_vm_restore(conn, "rp-unknown")
+    assert conn.paths("POST") == []
+    assert preview_vm_restore(conn, "rp-unknown", acknowledge_unresolved=True)["resolved"] is False
 
 
 @pytest.mark.unit

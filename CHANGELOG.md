@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.15.2 — 2026-09-12
+
+### Changed
+- **An irreversible VM restore is now refused when the restore point cannot be
+  read** (BREAKING for that one path). `start_vm_restore` sends no target
+  mapping, so it is a restore-to-original with no undo; when resolution failed
+  the tool proceeded anyway, unable to name the machine it was about to
+  overwrite — a preview reporting `vmName: null` is the absence of the one fact
+  the decision needs, not consent to it. The self-lockout guard still treats an
+  unknown name as "not the VBR server" rather than guessing; this is a separate
+  judgement about whether an unnamed target may be overwritten at all.
+  `acknowledge_unresolved=True` (CLI `--acknowledge-unresolved`) proceeds for
+  when the target has been confirmed in the Veeam console, so the capability is
+  preserved for the disaster it exists for. Refusing errs recoverably; the
+  previous behaviour did not.
+
 ## v0.15.1 — 2026-09-12
 
 ### Fixed

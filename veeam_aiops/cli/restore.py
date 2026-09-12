@@ -51,18 +51,26 @@ def restore_start(
     restore_point_id: str = typer.Option(..., "--restore-point-id", help="Restore point id"),
     target: TargetOption = None,
     dry_run: DryRunOption = False,
+    acknowledge_unresolved: bool = typer.Option(
+        False, "--acknowledge-unresolved",
+        help="Restore even though the restore point could not be read and the "
+             "target machine is therefore unknown.",
+    ),
 ) -> None:
     """Start a VM restore (IRREVERSIBLE — double confirm).
 
     The dry-run resolves the restore point to the VM it would overwrite: a GUID
-    is not something a human can approve an irreversible restore on.
+    is not something a human can approve an irreversible restore on. If it
+    cannot be read at all the restore is refused, because then nothing can say
+    which machine gets overwritten; --acknowledge-unresolved proceeds anyway.
     """
     if dry_run:
         # Through the governed twin, not around it: that is what applies the
         # self-target guard and the audit row to the preview as well.
         result = governed(
             gov.start_vm_restore(
-                restore_point_id=restore_point_id, dry_run=True, target=target
+                restore_point_id=restore_point_id, dry_run=True,
+                acknowledge_unresolved=acknowledge_unresolved, target=target
             )
         )
         preview = result.get("wouldRestore", {})
@@ -80,6 +88,8 @@ def restore_start(
     double_confirm("start VM restore (overwrites/creates a VM)", restore_point_id)
     console.print_json(
         json.dumps(
-            governed(gov.start_vm_restore(restore_point_id=restore_point_id, target=target))
+            governed(gov.start_vm_restore(
+                restore_point_id=restore_point_id,
+                acknowledge_unresolved=acknowledge_unresolved, target=target))
         )
     )

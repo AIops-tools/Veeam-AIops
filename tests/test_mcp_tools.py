@@ -504,7 +504,8 @@ def test_start_vm_restore_dry_run_never_writes_and_is_audited(
 ):
     """This is the preview that proves the rule: it MUST read to name the VM
     behind the GUID, and it must still never write."""
-    fake = fake_veeam()
+    fake = fake_veeam(responses={"/api/v1/restorePoints/rp1": {"id": "rp1", "name": "sql-01",
+                                    "creationTime": "2026-09-01T02:00:00Z"}})
     _wire(monkeypatch, restore_tools, fake)
     out = restore_tools.start_vm_restore(restore_point_id="rp1", dry_run=True)
     assert out["dryRun"] is True and out["wouldRestore"]["restore_point_id"] == "rp1"
@@ -516,7 +517,8 @@ def test_start_vm_restore_dry_run_never_writes_and_is_audited(
 def test_start_vm_restore_posts_restore_point_and_records_no_undo(
     monkeypatch, fake_veeam, undo_recorder
 ):
-    fake = fake_veeam()
+    fake = fake_veeam(responses={"/api/v1/restorePoints/rp1": {"id": "rp1", "name": "sql-01",
+                                    "creationTime": "2026-09-01T02:00:00Z"}})
     _wire(monkeypatch, restore_tools, fake)
     out = restore_tools.start_vm_restore(restore_point_id="rp1")
     assert "error" not in out

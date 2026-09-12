@@ -108,8 +108,9 @@ Properties* lists every file with its size.
       any other one still prints its preview.
 - [ ] Every CLI write exits non-zero on a refusal or an aborted confirmation (`echo $?`).
 - [ ] Every `--dry-run` leaves an audit row and changes nothing on the VBR server.
-- [ ] An unresolvable restore-point id still proceeds (fails open) and the preview
-      says `resolved: false` rather than showing a blank name.
+- [ ] An unresolvable restore-point id is REFUSED with a message naming
+      `acknowledge_unresolved`, and no POST reaches the server; with the
+      acknowledgement it proceeds and reports `resolved: false`.
 - [ ] A real restore into a **free** target records an undo; a forced overwrite
       correctly declares none and is tagged `high` risk.
 

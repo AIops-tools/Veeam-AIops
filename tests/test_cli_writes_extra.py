@@ -187,7 +187,13 @@ def test_cli_restore_start_confirmed_posts_and_audits(gov_home, monkeypatch, fak
     import mcp_server.tools.restore as gov_restore
     from veeam_aiops.cli import app
 
-    fake = fake_veeam(responses={"/api/v1/restore/vm": {}})
+    fake = fake_veeam(responses={
+        "/api/v1/restore/vm": {},
+        # A real server answers the restore-point lookup. Without it this was
+        # exercising the "cannot name the target" path by accident.
+        "/api/v1/restorePoints/rp-7": {
+            "id": "rp-7", "name": "sql-01", "creationTime": "2026-09-01T02:00:00Z"},
+    })
     monkeypatch.setattr(gov_restore, "_get_connection", lambda target=None: fake)
     result = runner.invoke(
         app, ["restore", "start", "--restore-point-id", "rp-7"], input="y\ny\n"

@@ -128,12 +128,11 @@ and what to do about them:
   VM and creation time behind the restore-point GUID. The tool refuses a restore
   whose VM name matches the configured VBR host — an in-place overwrite of the
   backup server itself — but that check compares a display name to a hostname, so
-  **it will miss a VBR server named anything else**, and it fails open when the
-  restore point cannot be read. Confirm the target machine yourself.
-- **Repository capacity is best-effort.** VBR only exposes capacity/free on the
-  repository *states* endpoint, and not for every repository type. When
-  `repository_capacity_rca` cannot compute a free percentage it reports `null`
-  and skips the repository rather than guessing — a null there is not "0% free".
+  **it will miss a VBR server named anything else**. Separately, when the
+  restore point cannot be read at all the restore is REFUSED, because nothing
+  can then say which machine would be overwritten; pass
+  `acknowledge_unresolved=True` only after confirming the target in the Veeam
+  console.
 
 ## If your model still struggles
 

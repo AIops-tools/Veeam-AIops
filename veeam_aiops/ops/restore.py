@@ -43,6 +43,36 @@ class SelfLockout(ValueError):  # noqa: N818 — teaching error, reads as a stat
     """Refused: the operation would overwrite the VBR server running this tool."""
 
 
+class UnresolvedTarget(ValueError):  # noqa: N818 — teaching error, reads as a statement
+    """Refused: the restore point could not be read, so the target is unknown."""
+
+
+def _refuse_if_unresolved(restore_point_id: str, rp: dict | None, acknowledged: bool) -> None:
+    """Raise unless the restore point resolved, or the caller accepted the risk.
+
+    This call sends no target mapping, so it is a restore-to-original with no
+    undo. When the restore point cannot be read the tool cannot say which
+    machine it is about to overwrite, and this line's rule for unreadable state
+    is that it is never OK (bug class #13) — a preview showing ``vmName: null``
+    is not consent, it is the absence of the one fact the decision needs.
+
+    It refuses rather than removing the capability: a disaster is the worst
+    moment to be blocked by a tool, so ``acknowledge_unresolved`` still gets the
+    restore out. Erring this way is recoverable (use the Veeam console); erring
+    the other way overwrites a machine nobody could name.
+    """
+    if rp or acknowledged:
+        return
+    raise UnresolvedTarget(
+        f"Refusing to restore restore point '{restore_point_id}': it could not "
+        f"be read, so this tool cannot say which machine the restore would "
+        f"overwrite. The call carries no target mapping, so it is a "
+        f"restore-to-original with no undo. Confirm the restore point in the "
+        f"Veeam console, or re-run with acknowledge_unresolved=True "
+        f"(CLI: --acknowledge-unresolved) to proceed without knowing the target."
+    )
+
+
 def _restore_point_summary(rp: dict) -> dict:
     return {
         "id": opt_str(rp.get("id"), 64),
@@ -160,7 +190,8 @@ def _refuse_if_self_restore(conn: Any, restore_point_id: str, vm_name: str | Non
     )
 
 
-def preview_vm_restore(conn: Any, restore_point_id: str) -> dict:
+def preview_vm_restore(conn: Any, restore_point_id: str,
+                      acknowledge_unresolved: bool = False) -> dict:
     """[READ] Resolve what a VM restore would overwrite, for the dry-run preview.
 
     A restore is irreversible, so the preview has to show whoever authorises it
@@ -172,12 +203,14 @@ def preview_vm_restore(conn: Any, restore_point_id: str) -> dict:
     field the reader has to notice. A flag on a preview is something a hurried
     operator scrolls past; a refusal is not.
 
-    ``resolved: false`` (with ``vmName``/``creationTime`` null) means the
-    restore point could not be read. The restore itself still proceeds in that
-    case (the guard fails open), so treat an unresolved preview as a reason to
-    check in the Veeam console before approving, never as reassurance.
+    An unreadable restore point is **refused** (:class:`UnresolvedTarget`) by
+    the preview and the real call alike, because a preview reporting
+    ``vmName: null`` is not something anyone can authorise. Pass
+    ``acknowledge_unresolved=True`` to get the preview (and the restore) anyway;
+    ``resolved: false`` then says the target is unknown.
     """
     rp = _resolve_restore_point(conn, restore_point_id)
+    _refuse_if_unresolved(restore_point_id, rp, acknowledge_unresolved)
     _refuse_if_self_restore(conn, restore_point_id, (rp or {}).get("name"))
     return {
         "restore_point_id": sanitize(restore_point_id, 64),
@@ -187,7 +220,8 @@ def preview_vm_restore(conn: Any, restore_point_id: str) -> dict:
     }
 
 
-def start_vm_restore(conn: Any, restore_point_id: str) -> dict:
+def start_vm_restore(conn: Any, restore_point_id: str,
+                    acknowledge_unresolved: bool = False) -> dict:
     """[WRITE] Start a VM restore from a restore point. IRREVERSIBLE — no undo.
 
     SKELETON: this issues a minimal full-VM-restore start against the restore
@@ -204,12 +238,17 @@ def start_vm_restore(conn: Any, restore_point_id: str) -> dict:
     That check is INCOMPLETE BY NATURE — a safety net, not a proof. **A VM
     display name is not a hostname**: a VBR server whose VM is named
     'Backup Server 01' while its host is 'vbr01.corp.example' is NOT caught, nor
-    is one reached by IP or by a CNAME. It also FAILS OPEN — when the restore
-    point cannot be resolved the restore proceeds, because an unknown name must
-    never be read as "it is the VBR server". Confirm the target machine
-    yourself; the ``dry_run`` preview names it.
+    is one reached by IP or by a CNAME. Confirm the target machine yourself; the
+    ``dry_run`` preview names it.
+
+    **An unreadable restore point is refused** (:class:`UnresolvedTarget`),
+    because this call cannot then name the machine it would overwrite. That is
+    a separate judgement from the self-lockout guard above, which still treats
+    an unknown name as "not the VBR server" rather than guessing. Pass
+    ``acknowledge_unresolved=True`` to proceed without knowing the target.
     """
     rp = _resolve_restore_point(conn, restore_point_id)
+    _refuse_if_unresolved(restore_point_id, rp, acknowledge_unresolved)
     vm_name = (rp or {}).get("name")
     _refuse_if_self_restore(conn, restore_point_id, vm_name)
     body = {"restorePointId": restore_point_id}
