@@ -331,3 +331,90 @@ def test_timeout_defaults_to_thirty_seconds(monkeypatch):
     monkeypatch.setattr(httpx, "Client", _Client)
     VeeamConnection(_target(monkeypatch))
     assert seen["timeout"] == 30.0
+
+
+# ─── token expiry on a long-lived connection (issue #3) ──────────────────────
+
+
+def _token_client(monkeypatch, statuses, *, expires_in=None):
+    """Client whose API calls follow ``statuses``; records every token POST."""
+    calls = {"token": 0, "api": 0, "auth_seen": []}
+
+    class _Client:
+        def __init__(self, *a, **k):
+            self.headers = {}
+
+        def post(self, path, **k):
+            calls["token"] += 1
+            body = {"access_token": f"TOK{calls['token']}"}
+            if expires_in is not None:
+                body["expires_in"] = expires_in
+            return _Resp(200, body)
+
+        def request(self, method, path, **k):
+            calls["api"] += 1
+            calls["auth_seen"].append(self.headers.get("Authorization"))
+            status = statuses[min(calls["api"] - 1, len(statuses) - 1)]
+            return _Resp(status, {"ok": True} if status == 200 else {}, text="denied")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(httpx, "Client", _Client)
+    return calls
+
+
+@pytest.mark.unit
+def test_expired_token_is_refreshed_and_the_request_retried_once(monkeypatch):
+    """A cached connection outlives its bearer token; the CLI never noticed.
+
+    Reported on issue #3 against a persistent Streamable HTTP MCP deployment:
+    tools work, then every call returns 401 from VBR until the service is
+    restarted. ConnectionManager caches a VeeamConnection forever and _login()
+    only ran in __init__, so the token was never renewed. The CLI is immune
+    because each invocation builds a fresh connection — which is exactly why
+    this could not be caught from the CLI.
+
+    A 401 is an auth rejection made before the request is executed, so retrying
+    it cannot double-apply a write.
+    """
+    calls = _token_client(monkeypatch, [401, 200])
+    conn = VeeamConnection(_target(monkeypatch))
+    out = conn.get("/api/v1/jobs")
+
+    assert out == {"ok": True}
+    assert calls["token"] == 2, "expected one login plus one refresh"
+    assert calls["api"] == 2, "expected the original request to be retried once"
+    assert calls["auth_seen"] == ["Bearer TOK1", "Bearer TOK2"], "retry must use the NEW token"
+
+
+@pytest.mark.unit
+def test_a_persistent_401_is_not_retried_forever(monkeypatch):
+    """Retry once, then report. A refresh loop against a revoked account is worse
+    than a clear error."""
+    calls = _token_client(monkeypatch, [401])
+    conn = VeeamConnection(_target(monkeypatch))
+    with pytest.raises(VeeamApiError) as ei:
+        conn.get("/api/v1/jobs")
+    assert ei.value.status_code == 401
+    assert calls["api"] == 2 and calls["token"] == 2
+
+
+@pytest.mark.unit
+def test_a_successful_call_does_not_re_authenticate(monkeypatch):
+    """Positive control: the refresh must be triggered by a 401, not by every call."""
+    calls = _token_client(monkeypatch, [200])
+    conn = VeeamConnection(_target(monkeypatch))
+    conn.get("/api/v1/jobs")
+    assert calls["token"] == 1 and calls["api"] == 1
+
+
+@pytest.mark.unit
+def test_a_token_that_reports_its_lifetime_is_renewed_before_it_expires(monkeypatch):
+    """expires_in lets the common case avoid a request that is certain to fail."""
+    calls = _token_client(monkeypatch, [200], expires_in=1)
+    conn = VeeamConnection(_target(monkeypatch))
+    conn._expires_at = 0.0          # as if the lifetime had elapsed
+    conn.get("/api/v1/jobs")
+    assert calls["token"] == 2, "expected a proactive refresh before the call"
+    assert calls["api"] == 1, "and no wasted 401 round-trip"

@@ -21,6 +21,7 @@ connection layer from the first version, not let users hit raw tracebacks.
 
 from __future__ import annotations
 
+import time
 from typing import Any
 from urllib.parse import quote
 
@@ -82,6 +83,7 @@ class VeeamConnection:
             timeout=target.timeout,
             headers={"x-api-version": API_VERSION, "Accept": "application/json"},
         )
+        self._expires_at: float | None = None
         self._login()
 
     @property
@@ -113,16 +115,48 @@ class VeeamConnection:
                 status_code=resp.status_code,
                 path="/api/oauth2/token",
             )
-        token = (resp.json() or {}).get("access_token", "")
+        body = resp.json() or {}
+        token = body.get("access_token", "")
         if not token:
             raise VeeamApiError(
                 "Veeam token endpoint returned no access_token.",
                 path="/api/oauth2/token",
             )
         self._client.headers["Authorization"] = f"Bearer {token}"
+        # Veeam's TokenModel carries expires_in. Absent is NOT zero: a server
+        # that does not report a lifetime leaves this None and we fall back to
+        # renewing reactively on the first 401.
+        lifetime = body.get("expires_in")
+        if isinstance(lifetime, (int, float)) and not isinstance(lifetime, bool) and lifetime > 0:
+            margin = min(60.0, float(lifetime) / 2)
+            self._expires_at = time.monotonic() + float(lifetime) - margin
+        else:
+            self._expires_at = None
 
     def request(self, method: str, path: str, **kwargs: Any) -> Any:
-        """Issue a request and return parsed JSON, translating errors centrally."""
+        """Issue a request and return parsed JSON, translating errors centrally.
+
+        Renews the bearer token when it expires. A ConnectionManager keeps one
+        connection for the life of the process, so a long-running MCP server
+        outlives its token and every tool starts returning 401 until the service
+        is restarted; the CLI never sees it because each invocation logs in
+        afresh. Renewal is reactive (retry once on 401, which also covers a
+        token revoked server-side or a skewed clock) with a proactive refresh
+        when the server told us the lifetime.
+        """
+        if self._expires_at is not None and time.monotonic() >= self._expires_at:
+            self._login()
+        resp = self._send(method, path, **kwargs)
+        if resp.status_code == 401 and not path.startswith("/api/oauth2/"):
+            # A 401 is refused by the auth layer before the handler runs, so the
+            # request had no effect and retrying it cannot apply a write twice.
+            # Exactly one retry: looping against a disabled account would bury
+            # the real answer under repeated logins.
+            self._login()
+            resp = self._send(method, path, **kwargs)
+        return self._parse(resp, method, path)
+
+    def _send(self, method: str, path: str, **kwargs: Any) -> Any:
         try:
             resp = self._client.request(method, path, **kwargs)
         except httpx.TimeoutException as exc:
@@ -146,6 +180,9 @@ class VeeamConnection:
                 f"Transport error on {method} {path}: {exc}. Check connectivity.",
                 path=path,
             ) from exc
+        return resp
+
+    def _parse(self, resp: Any, method: str, path: str) -> Any:
         if not (200 <= resp.status_code < 300):
             raise VeeamApiError(
                 _teaching_message(resp.status_code, path, resp.text),

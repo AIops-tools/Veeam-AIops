@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.15.1 — 2026-09-12
+
+### Fixed
+- **A long-lived MCP server kept an expired bearer token and never
+  reauthenticated** (#3, reported against a persistent Streamable HTTP
+  deployment). `ConnectionManager` caches a connection for the life of the
+  process while `_login()` only ran at construction, so once VBR expired the
+  token every tool returned 401 until the service was restarted. The CLI was
+  immune because each invocation logs in afresh — which is why no CLI testing
+  could have found it. A 401 is now answered by renewing the token and retrying
+  the request exactly once (a 401 is refused before the handler runs, so a
+  write cannot be applied twice), and when the server reports `expires_in` the
+  token is renewed before it lapses.
+
+### Added
+- **The OpenClaw install path is documented.** The ClawHub bundle channel went
+  live but neither the README nor this skill said how to install from it:
+  `openclaw plugins install clawhub:@aiops-tools/veeam-aiops`. States the `uvx`
+  prerequisite (without it the skill installs but reports `Visible to model:
+  no`) and that the MCP server is pinned to this exact release.
+- **Where an exported master password lives** is now stated next to the
+  instruction to export it: readable by every process the shell starts, and
+  kept in shell history.
+
 ## v0.15.0 — 2026-09-12
 ### Added
 - **Per-target `timeout` (seconds) in `config.yaml`.** The 30 s request budget
