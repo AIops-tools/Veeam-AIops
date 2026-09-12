@@ -17,7 +17,7 @@ installer:
 argument-hint: "[job id or describe your Veeam task]"
 allowed-tools:
   - Bash
-metadata: {"openclaw":{"requires":{"env":["VEEAM_AIOPS_CONFIG"],"bins":["veeam-aiops"],"config":["~/.veeam-aiops/config.yaml","~/.veeam-aiops/secrets.enc"]},"optional":{"env":["VEEAM_AIOPS_MASTER_PASSWORD"]},"primaryEnv":"VEEAM_AIOPS_CONFIG","homepage":"https://github.com/AIops-tools/Veeam-AIops","emoji":"💾","os":["macos","linux"]}}
+metadata: {"openclaw":{"requires":{"anyBins":["veeam-aiops","uvx"]},"optional":{"env":["VEEAM_AIOPS_CONFIG","VEEAM_AIOPS_MASTER_PASSWORD"]},"homepage":"https://github.com/AIops-tools/Veeam-AIops","emoji":"💾","os":["macos","linux"]}}
 compatibility: >
   Standalone, self-governed Veeam Backup & Replication operations. The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency.
   All write operations are audited to a local SQLite DB under ~/.veeam-aiops/ (relocatable via VEEAM_AIOPS_HOME).
