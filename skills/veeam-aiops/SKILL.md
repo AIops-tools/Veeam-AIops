@@ -57,6 +57,13 @@ veeam-aiops init       # interactive wizard: connection + encrypted password
 veeam-aiops doctor
 ```
 
+Or as an OpenClaw plugin, which installs this skill and its MCP server together:
+
+```bash
+openclaw plugins install clawhub:@aiops-tools/veeam-aiops
+openclaw skills info veeam-aiops          # expect: Visible to model: yes
+```
+
 ## When to Use This Skill
 
 - List/inspect Veeam backup jobs and their last result
