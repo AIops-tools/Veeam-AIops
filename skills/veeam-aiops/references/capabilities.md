@@ -141,6 +141,19 @@ is paged to completion — the server caps a page at 200 by default.
   this machine's points) goes to `unattributedStoredBytes` — never charged, and
   visible if owner ids ever turn out not to match backup-object ids. The ranking
   reads no restore points and charges each file to its listed owner.
+- **The ranking separates two kinds of uncharged file.** A file naming no owner
+  at all is an ordinary per-job chain file and lands in `ownerlessStoredBytes`.
+  A file naming an owner id that its own backup's object listing does not
+  contain lands in `unmatchedOwnerStoredBytes` and raises a caveat — that is the
+  signal that backup-file owner ids and backup-object ids are different
+  namespaces on this build, which is the one assumption the Veeam spec never
+  pins down. `unresolvedStoredBytes` remains the sum of both. Judge a ranking's
+  fitness for chargeback on `unmatchedOwnerFiles`, never on the sum: a healthy
+  estate can carry a large ownerless total.
+- **A partial ranking says so.** `backupsScanned`/`backupsTotal`/
+  `backupsTruncated` are in the payload and the CLI prints an explicit PARTIAL
+  line, because the default `max_backups` (100) is below some estates' backup
+  count and widening a scan can put a previously unseen object at rank 1.
 - **One unreadable backup does not blank the result**: it is listed in
   `unreadableBackups` (with the error) and left out of every total.
 - **The restore-point filter is checked, not trusted.** A query for a random

@@ -115,9 +115,19 @@ def backup_ranking(
     console.print(
         f"{out['returned']} of {out['objectsTotal']} objects; scanned "
         f"{out['backupsScanned']} of {out['backupsTotal']} backups. Shared: "
-        f"{_gib(out['sharedStoredBytes'])} GiB, unresolved: "
-        f"{_gib(out['unresolvedStoredBytes'])} GiB (not charged)."
+        f"{_gib(out['sharedStoredBytes'])} GiB, ownerless (per-job chain files): "
+        f"{_gib(out['ownerlessStoredBytes'])} GiB, owner not in its backup: "
+        f"{_gib(out['unmatchedOwnerStoredBytes'])} GiB (none charged)."
     )
+    if out["backupsTruncated"]:
+        # A ranking of a subset is a valid ranking of that subset and nothing
+        # more. Reported on issue #2: raising the scan from 5 to 10 backups put
+        # a 38 TiB object at the top that the smaller scan never saw.
+        console.print(
+            f"[yellow]PARTIAL: ranks only the {out['backupsScanned']} backups "
+            f"scanned, not the environment. Raise --max-backups to "
+            f"{out['backupsTotal']} for a complete ranking.[/]"
+        )
     for bad in out["unreadableBackups"]:
         console.print(f"[yellow]Unreadable backup {bad['backupName']}: {bad['error']}[/]")
     for caveat in out["caveats"]:

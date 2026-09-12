@@ -136,8 +136,11 @@ def test_login_missing_token_raises(monkeypatch):
 
 @pytest.mark.unit
 def test_request_transport_error_translated(monkeypatch):
+    # Was written with ReadTimeout standing in for "some transport error", which
+    # quietly made the merged handling the specification. A timeout now has its
+    # own answer, so this case uses a fault that really is about reachability.
     def _boom(method, path, **k):
-        raise httpx.ReadTimeout("slow")
+        raise httpx.ConnectError("refused")
 
     _install_client(monkeypatch, request_fn=_boom)
     conn = VeeamConnection(_target(monkeypatch))
@@ -232,3 +235,99 @@ def test_manager_from_config_uses_loader(monkeypatch):
     cfg = AppConfig(targets=(_target(monkeypatch, "lab"),))
     mgr = ConnectionManager.from_config(cfg)
     assert mgr.list_targets() == ["lab"]
+
+
+# ─── slow endpoint vs unreachable server ─────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_read_timeout_is_not_reported_as_a_connectivity_problem(monkeypatch):
+    """A slow endpoint and an unreachable server need different answers.
+
+    On a large VBR installation ``/jobs`` and ``/sessions`` can exceed any
+    client budget while every other endpoint on the same authenticated session
+    answers in seconds (field report on issue #2: repositories 2.6 s, infra
+    servers 13.3 s, jobs timing out at 120 s for a single record). The old
+    wording — "Transport error ... Check connectivity" — sends the operator to
+    diagnose a network that is demonstrably fine, and the reporter had to run
+    his own httpx experiment to rule our client out.
+    """
+    def _timeout(method, path, **k):
+        raise httpx.ReadTimeout("timed out")
+
+    _install_client(monkeypatch, request_fn=_timeout)
+    conn = VeeamConnection(_target(monkeypatch))
+    with pytest.raises(VeeamApiError) as ei:
+        conn.get("/api/v1/jobs")
+    msg = str(ei.value)
+    assert "timed out" in msg.lower()
+    assert "30" in msg                        # names the budget that was spent
+    assert "Check connectivity" not in msg    # the wrong headline
+    assert "timeout" in msg.lower()           # names the knob to raise
+
+
+@pytest.mark.unit
+def test_a_real_transport_failure_still_says_check_connectivity(monkeypatch):
+    """Positive control: narrowing the timeout case must not blunt the other."""
+    def _refused(method, path, **k):
+        raise httpx.ConnectError("refused")
+
+    _install_client(monkeypatch, request_fn=_refused)
+    conn = VeeamConnection(_target(monkeypatch))
+    with pytest.raises(VeeamApiError) as ei:
+        conn.get("/api/v1/jobs")
+    assert "Check connectivity" in str(ei.value)
+
+
+@pytest.mark.unit
+def test_timeout_is_configurable_per_target(monkeypatch):
+    """The 30 s budget was hardcoded with no way to override it.
+
+    Same shape as the hardcoded ``https://`` this line already fixed: the value
+    is defensible, having no knob is not.
+    """
+    seen: dict = {}
+
+    class _Client:
+        def __init__(self, *a, **k):
+            seen.update(k)
+            self.headers = {}
+
+        def post(self, path, **k):
+            return _Resp(200, {"access_token": "TOK"})
+
+        def request(self, method, path, **k):
+            return _Resp(200, {})
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(httpx, "Client", _Client)
+    monkeypatch.setenv("VEEAM_SLOW_PASSWORD", "secret")
+    target = TargetConfig(name="slow", host="vbr.local", username="admin",
+                          verify_ssl=False, timeout=180.0)
+    VeeamConnection(target)
+    assert seen["timeout"] == 180.0
+
+
+@pytest.mark.unit
+def test_timeout_defaults_to_thirty_seconds(monkeypatch):
+    seen: dict = {}
+
+    class _Client:
+        def __init__(self, *a, **k):
+            seen.update(k)
+            self.headers = {}
+
+        def post(self, path, **k):
+            return _Resp(200, {"access_token": "TOK"})
+
+        def request(self, method, path, **k):
+            return _Resp(200, {})
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(httpx, "Client", _Client)
+    VeeamConnection(_target(monkeypatch))
+    assert seen["timeout"] == 30.0

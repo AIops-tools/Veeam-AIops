@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+### Added
+- **Per-target `timeout` (seconds) in `config.yaml`.** The 30 s request budget
+  was hardcoded with no override. On a large estate `/jobs` and `/sessions` can
+  exceed any client budget while every other endpoint answers in seconds, and
+  there was no supported way to give them longer.
+- **The storage ranking now separates two kinds of uncharged file** that were
+  reported as one `unresolved` number: `ownerlessStoredBytes` (files naming no
+  owner — ordinary per-job chain files) and `unmatchedOwnerStoredBytes` (files
+  naming an owner id their own backup does not list, which is the signal that
+  owner ids and backup-object ids are different namespaces on that build). Only
+  the second raises a caveat. `unresolved*` stays as the sum, so existing
+  consumers keep working.
+- **`backup ranking` prints an explicit PARTIAL line** when it scanned fewer
+  than all backups, naming the flag to raise. The counts were already in the
+  payload, but a partial ranking rendered exactly like a complete one — and the
+  default `--max-backups` is 100, which is below some estates' backup count.
+
+### Fixed
+- **A request timeout was reported as "Transport error … Check connectivity".**
+  A timeout is a subclass of `httpx.HTTPError` and was falling into the generic
+  branch, so a server that accepted the connection and then went quiet was
+  diagnosed as a network fault — on an estate where every other endpoint
+  answered in seconds. It now says it timed out, names the budget spent, and
+  names the config key that raises it.
+- **`docs/VERIFICATION.md` gave a criterion that would fail a healthy server**:
+  it asked for `unresolvedFiles == 0`, which merged ownerless chain files into
+  the namespace signal. The check is now `unmatchedOwnerFiles == 0`.
+
 ## v0.14.0 — 2026-09-12
 ### Added
 - **Installable from ClawHub as an OpenClaw bundle plugin** (`@aiops-tools/veeam-aiops`): one install delivers the skill *and* its MCP

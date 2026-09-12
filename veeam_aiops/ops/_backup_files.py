@@ -45,6 +45,15 @@ UNATTRIBUTED_CAVEAT = (
     "0 while these are large, report it with the VBR build: file owner ids may not "
     "match backup-object ids on this build."
 )
+UNMATCHED_OWNER_CAVEAT = (
+    "Some backup files name an owner id that their own backup's object listing "
+    "does not contain, so their bytes are charged to no machine (they are in "
+    "unmatchedOwnerStoredBytes, not in any storedBytes). If that total is large, "
+    "treat this ranking as unsafe for chargeback and report it with the VBR "
+    "build: backup-file owner ids and backup-object ids do not match on it. "
+    "Files naming no owner at all are ordinary per-job chain files and are "
+    "counted apart, as ownerlessStoredBytes."
+)
 UNREADABLE_CAVEAT = (
     "Some backups could not be read (see unreadableBackups); their bytes are not "
     "in any total."

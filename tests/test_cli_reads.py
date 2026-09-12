@@ -506,3 +506,31 @@ def test_restore_list_points_bad_limit_exits_1(monkeypatch, fake_veeam):
     result = runner.invoke(app, ["restore", "list-points", "--limit", "0"])
     assert result.exit_code == 1
     assert "limit must be" in result.output
+
+
+@pytest.mark.unit
+def test_backup_ranking_says_so_when_it_ranked_only_part_of_the_estate(monkeypatch):
+    """A ranking of a subset must not read as a ranking of the environment.
+
+    Reported on issue #2 against a live VBR: widening the scan from 5 to 10
+    backups put a ~38 TiB object at rank 1 that the narrower scan had never
+    seen. The scanned/total counts were already in the payload, but nothing in
+    the rendered output said "incomplete", and the default --max-backups (100)
+    is below that estate's backup count (123), so the DEFAULT invocation is the
+    partial one.
+    """
+    from footprint_fixtures import RouteFake, ranking_routes
+
+    from veeam_aiops.cli import app
+    _wire(monkeypatch, "backup", RouteFake(ranking_routes()))
+    partial = runner.invoke(app, ["backup", "ranking", "--max-backups", "1"])
+    assert partial.exit_code == 0
+    assert "PARTIAL" in partial.stdout
+    assert "--max-backups" in partial.stdout
+
+    # Positive control: a complete scan must stay quiet, or the banner becomes
+    # noise that operators learn to ignore.
+    _wire(monkeypatch, "backup", RouteFake(ranking_routes()))
+    full = runner.invoke(app, ["backup", "ranking"])
+    assert full.exit_code == 0
+    assert "PARTIAL" not in full.stdout

@@ -84,8 +84,13 @@ Properties* lists every file with its size.
 - [ ] A VM renamed after some backups keeps all its restore points and lists the
       old name in `restorePointNamesSeen`.
 - [ ] `veeam-aiops backup ranking` → the top rows match the largest VMs you
-      expect, and `unresolvedFiles` is 0 (a non-zero value means file owner ids
-      and backup object ids are not the same namespace on this build).
+      expect, and **`unmatchedOwnerFiles` is 0** (a non-zero value means file
+      owner ids and backup object ids are not the same namespace on this build).
+      `ownerlessFiles` being non-zero is NOT that signal — those are per-job
+      chain files that name no owner, and a live VBR 13.1 environment reported
+      a large ownerless total with per-object attribution intact. This criterion
+      previously read `unresolvedFiles`, which merged the two and would have
+      failed a healthy server.
 - [ ] On a VBR 12.1 / 12.2 server the command refuses and names build 12.3.0.310.
 
 ### 3. A reversible write + its undo

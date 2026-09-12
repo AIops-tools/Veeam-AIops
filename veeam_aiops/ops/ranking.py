@@ -62,7 +62,11 @@ def storage_ranking(conn: Any, limit: int = 20, max_backups: int = 100) -> dict:
     scanned = backups[:max_backups]
     rows: dict[str, dict] = {}
     shared = {"files": 0, "bytes": 0, "unsized": 0}
-    unresolved = {"files": 0, "bytes": 0, "unsized": 0}
+    # Two buckets, not one: a file naming no owner is an ordinary per-job chain
+    # file, while a file naming an owner its backup does not list is the
+    # id-namespace signal that decides whether these totals can be billed.
+    ownerless = {"files": 0, "bytes": 0, "unsized": 0}
+    unmatched = {"files": 0, "bytes": 0, "unsized": 0}
     shapes: set[str] = set()
     unreadable: list[dict] = []
     for backup in scanned:
@@ -87,7 +91,7 @@ def storage_ranking(conn: Any, limit: int = 20, max_backups: int = 100) -> dict:
                 continue
             owner = by_id.get(listed[0]) if listed else None
             if owner is None:
-                _add(unresolved, size)
+                _add(unmatched if listed else ownerless, size)
                 continue
             key, basis = bf.identity(owner)
             row = rows.setdefault(key, _new_row(owner, key, basis))
@@ -114,6 +118,8 @@ def storage_ranking(conn: Any, limit: int = 20, max_backups: int = 100) -> dict:
         caveats.append(bf.NAME_IDENTITY_CAVEAT)
     if unreadable:
         caveats.append(bf.UNREADABLE_CAVEAT)
+    if unmatched["files"]:
+        caveats.append(bf.UNMATCHED_OWNER_CAVEAT)
     return {
         "objects": ranked,
         "returned": len(ranked),
@@ -127,9 +133,15 @@ def storage_ranking(conn: Any, limit: int = 20, max_backups: int = 100) -> dict:
         "sharedFiles": shared["files"],
         "sharedStoredBytes": shared["bytes"],
         "sharedUnsizedFiles": shared["unsized"],
-        "unresolvedFiles": unresolved["files"],
-        "unresolvedStoredBytes": unresolved["bytes"],
-        "unresolvedUnsizedFiles": unresolved["unsized"],
+        "unresolvedFiles": ownerless["files"] + unmatched["files"],
+        "unresolvedStoredBytes": ownerless["bytes"] + unmatched["bytes"],
+        "unresolvedUnsizedFiles": ownerless["unsized"] + unmatched["unsized"],
+        "ownerlessFiles": ownerless["files"],
+        "ownerlessStoredBytes": ownerless["bytes"],
+        "ownerlessUnsizedFiles": ownerless["unsized"],
+        "unmatchedOwnerFiles": unmatched["files"],
+        "unmatchedOwnerStoredBytes": unmatched["bytes"],
+        "unmatchedOwnerUnsizedFiles": unmatched["unsized"],
         "apiRevision": session.negotiated,
         "caveats": caveats,
     }

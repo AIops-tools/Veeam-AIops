@@ -95,7 +95,15 @@ targets:
     username: "DOMAIN\\backup-admin"
     port: 9419
     verify_ssl: false          # self-signed lab certs only
+    timeout: 30                # seconds per request; raise for large estates
 ```
+
+> On a large VBR installation the `/jobs` and `/sessions` endpoints can take far
+> longer than the rest of the API — a live 13.1 environment did not answer a
+> single-record `/jobs` query inside 120 s while repositories answered in under
+> 3 s. `timeout` lets you give those endpoints longer. It does not make a slow
+> endpoint fast: if a raised budget also expires, the endpoint is the
+> bottleneck, not this client.
 
 For non-interactive use (MCP server, CI, cron) export the master password so the
 store can be unlocked without a prompt:

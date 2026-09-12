@@ -536,3 +536,54 @@ def test_ranking_truncation_is_measured_and_disclosed():
 def test_ranking_rejects_bad_bounds(kwargs, field):
     with pytest.raises(ValueError, match=field):
         ranking.storage_ranking(RouteFake(ranking_routes()), **kwargs)
+
+
+@pytest.mark.unit
+def test_ranking_separates_a_file_with_no_owner_from_one_naming_a_stranger():
+    """Two unrelated faults must not share one number.
+
+    A file that names no owner at all is ordinary — a per-job chain file. A file
+    that names an owner id absent from its own backup's object listing is the
+    signal that backup-file owner ids and backup-object ids are different
+    namespaces, which is the single assumption Veeam's spec never pins down and
+    the thing that decides whether a chargeback total can be trusted. Rolled
+    into one ``unresolved`` figure, neither can be acted on: the first is noise
+    to be ignored, the second is a reason to stop billing.
+
+    Field report on issue #2 (VBR 13.1.1.18) put 27,962.7 GiB in that one
+    bucket, which is why this split exists.
+    """
+    routes = ranking_routes()
+    routes["/api/v1/backups/b1/backupFiles"] = [
+        *routes["/api/v1/backups/b1/backupFiles"],
+        bfile("f5", "Daily-chain.vbk", None, 9 * GiB, 1, "t")]
+    out = ranking.storage_ranking(RouteFake(routes), limit=10)
+
+    assert out["ownerlessFiles"] == 1
+    assert out["ownerlessStoredBytes"] == 9 * GiB
+    # ghost.vbk names owner "zz", which b1's object listing does not contain.
+    assert out["unmatchedOwnerFiles"] == 1
+    assert out["unmatchedOwnerStoredBytes"] == 5 * GiB
+    # The roll-up still reconciles, so an existing consumer keeps working.
+    assert out["unresolvedFiles"] == 2
+    assert out["unresolvedStoredBytes"] == 14 * GiB
+
+
+@pytest.mark.unit
+def test_ranking_warns_only_when_an_owner_id_does_not_match_its_backup():
+    """The caveat has to be specific to the namespace signal.
+
+    Positive control included: a ranking whose only unresolved bytes are
+    ownerless files must NOT raise the alarm, or the warning becomes background
+    noise operators learn to scroll past.
+    """
+    out = ranking.storage_ranking(RouteFake(ranking_routes()), limit=10)
+    assert any("do not match" in c for c in out["caveats"])
+
+    routes = ranking_routes()
+    routes["/api/v1/backups/b1/backupFiles"] = [
+        bfile("f1", "VM01.vbk", ["o1"], 100 * GiB, 1, "t"),
+        bfile("f5", "Daily-chain.vbk", None, 9 * GiB, 1, "t")]
+    clean = ranking.storage_ranking(RouteFake(routes), limit=10)
+    assert clean["unmatchedOwnerFiles"] == 0
+    assert not any("do not match" in c for c in clean["caveats"])

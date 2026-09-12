@@ -70,6 +70,10 @@ def _resolve_secret(name: str) -> str:
     )
 
 
+DEFAULT_TIMEOUT = 30.0
+"""Seconds per HTTP request when a target does not set ``timeout``."""
+
+
 @dataclass(frozen=True)
 class TargetConfig:
     """A Veeam Backup & Replication REST API connection target.
@@ -93,6 +97,17 @@ class TargetConfig:
     unreachable — with a TLS record-layer error as the only clue. Sibling tools
     in this line take a free-form ``base_url``; the ones that CONSTRUCT their
     URL are the ones that needed this knob.
+    """
+
+    timeout: float = DEFAULT_TIMEOUT
+    """Per-request HTTP budget in seconds.
+
+    30 s suits a normal server, but some VBR endpoints — ``/jobs`` and
+    ``/sessions`` are the reported ones — can take far longer on a large
+    installation, and this value used to be hardcoded with no way to override
+    it. Raising it does not make a slow endpoint fast; it lets an operator find
+    out whether that endpoint is slow or stuck. Same shape as ``scheme`` above:
+    the default was defensible, having no knob was not.
     """
 
     @property
@@ -152,6 +167,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
             port=t.get("port", 9419),
             verify_ssl=t.get("verify_ssl", True),
             scheme=t.get("scheme", "https"),
+            timeout=float(t.get("timeout", DEFAULT_TIMEOUT)),
         )
         for t in raw.get("targets", [])
     )

@@ -69,9 +69,15 @@ def backup_storage_ranking(
     Answers "which machines are the most expensive to protect". Each backup file
     is charged to its single owner and one machine is merged across backups
     (vCenter path / moref, agent BIOS UUID), each row carrying an explicit rank.
-    Shared and unresolvable files are totals, never charged to anyone.
+    Shared and unattributable files are totals, never charged to anyone, split
+    into `ownerlessStoredBytes` (per-job chain files naming no owner — ordinary,
+    often large) and `unmatchedOwnerStoredBytes` (a file naming an owner its own
+    backup does not list). Judge whether these numbers can be billed on
+    `unmatchedOwnerFiles` being 0, never on the `unresolved*` sum.
     `truncated` / `backupsTruncated` say when more objects or backups exist than
-    were returned or scanned. Needs VBR 12.3+.
+    were returned or scanned; a ranking with `backupsTruncated` true ranks only
+    the scanned subset and must not be reported as an estate-wide ranking.
+    Needs VBR 12.3+.
 
     Args:
         limit: Rows to return, 1-500 (default 20).

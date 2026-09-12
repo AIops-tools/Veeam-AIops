@@ -29,7 +29,6 @@ import httpx
 from veeam_aiops.config import AppConfig, TargetConfig, load_config
 
 API_VERSION = "1.1-rev1"
-_TIMEOUT = 30.0
 
 
 def _seg(value: Any) -> str:
@@ -80,7 +79,7 @@ class VeeamConnection:
         self._client = httpx.Client(
             base_url=target.base_url,
             verify=target.verify_ssl,
-            timeout=_TIMEOUT,
+            timeout=target.timeout,
             headers={"x-api-version": API_VERSION, "Accept": "application/json"},
         )
         self._login()
@@ -126,6 +125,22 @@ class VeeamConnection:
         """Issue a request and return parsed JSON, translating errors centrally."""
         try:
             resp = self._client.request(method, path, **kwargs)
+        except httpx.TimeoutException as exc:
+            # Checked BEFORE the generic branch: a timeout is a subclass of
+            # httpx.HTTPError, and answering it with "check connectivity" sends
+            # the operator to diagnose a network that is answering fine on every
+            # other endpoint of the same session.
+            raise VeeamApiError(
+                f"{method} {path} timed out after {self._target.timeout:g}s. The "
+                f"server accepted the connection and then did not answer in "
+                f"time, so this is not a connectivity fault \u2014 other endpoints "
+                f"on this session may still respond normally. On large "
+                f"installations /jobs and /sessions can exceed any client budget "
+                f"even when asked for a single record. Raise 'timeout' for this "
+                f"target in config.yaml to allow longer; if that expires too, "
+                f"the endpoint is the bottleneck, not this client.",
+                path=path,
+            ) from exc
         except httpx.HTTPError as exc:
             raise VeeamApiError(
                 f"Transport error on {method} {path}: {exc}. Check connectivity.",
