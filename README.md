@@ -103,7 +103,11 @@ targets:
 > single-record `/jobs` query inside 120 s while repositories answered in under
 > 3 s. `timeout` lets you give those endpoints longer. It does not make a slow
 > endpoint fast: if a raised budget also expires, the endpoint is the
-> bottleneck, not this client.
+> bottleneck, not this client. The same holds for `/backups/{id}/backupFiles`,
+> which `backup ranking` reads once per backup: a 123-backup 13.1 estate needed
+> `timeout: 300` for a complete ranking, and a backup that times out is flagged
+> (`timedOut`) with this advice rather than silently left out. Scope the ranking
+> (`--backup`, `--repository`) when you need part of the estate quickly.
 
 For non-interactive use (MCP server, CI, cron) export the master password so the
 store can be unlocked without a prompt:

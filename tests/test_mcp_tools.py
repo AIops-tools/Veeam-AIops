@@ -598,6 +598,25 @@ def test_storage_ranking_tool_returns_an_envelope(monkeypatch):
     assert out["objects"][0]["rank"] == 1 and out["truncated"] is True
 
 
+@pytest.mark.unit
+def test_storage_ranking_tool_passes_scope_and_concurrency(monkeypatch):
+    from footprint_fixtures import RouteFake, ranking_routes
+
+    _wire(monkeypatch, backups_tools, RouteFake(ranking_routes()))
+    out = backups_tools.backup_storage_ranking(backups=["Copy"], concurrency=1)
+    assert out["scope"] == {"backups": ["Copy"], "repository": None}
+    assert out["scoped"] is True and out["backupsInScope"] == 1
+
+
+@pytest.mark.unit
+def test_storage_ranking_tool_reports_an_unknown_scope_as_an_error(monkeypatch):
+    from footprint_fixtures import RouteFake, ranking_routes
+
+    _wire(monkeypatch, backups_tools, RouteFake(ranking_routes()))
+    out = backups_tools.backup_storage_ranking(repository="nowhere")
+    assert "matched no backup" in out["error"]
+
+
 # ─── session window (list reads past the first page) ─────────────────────────
 
 

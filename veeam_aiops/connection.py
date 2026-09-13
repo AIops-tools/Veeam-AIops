@@ -21,6 +21,7 @@ connection layer from the first version, not let users hit raw tracebacks.
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any
 from urllib.parse import quote
@@ -45,9 +46,19 @@ def _seg(value: Any) -> str:
 class VeeamApiError(Exception):
     """A Veeam REST API call failed; carries a teaching message + status code."""
 
-    def __init__(self, message: str, *, status_code: int | None = None, path: str = "") -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        path: str = "",
+        timed_out: bool = False,
+    ) -> None:
         self.status_code = status_code
         self.path = path
+        # Callers branch on this (the ranking tells the operator to raise
+        # 'timeout') instead of parsing the message.
+        self.timed_out = timed_out
         super().__init__(message)
 
 
@@ -84,6 +95,10 @@ class VeeamConnection:
             headers={"x-api-version": API_VERSION, "Accept": "application/json"},
         )
         self._expires_at: float | None = None
+        # Reads may run in parallel (the storage ranking scans backups
+        # concurrently); renewal is serialised so an expired token is replaced
+        # once, not once per thread.
+        self._auth_lock = threading.Lock()
         self._login()
 
     @property
@@ -103,6 +118,17 @@ class VeeamConnection:
                 data=data,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
+        except httpx.TimeoutException as exc:
+            # Before the generic branch (a subclass of HTTPError): a login that
+            # times out is a slow server, not an unreachable one.
+            raise VeeamApiError(
+                f"Login to {self._target.base_url} timed out after "
+                f"{self._target.timeout:g}s. The server accepted the connection "
+                f"and did not answer in time; raise 'timeout' for this target in "
+                f"config.yaml if the VBR REST service is busy.",
+                path="/api/oauth2/token",
+                timed_out=True,
+            ) from exc
         except httpx.HTTPError as exc:
             raise VeeamApiError(
                 f"Could not reach Veeam server at {self._target.base_url}: {exc}. "
@@ -144,17 +170,31 @@ class VeeamConnection:
         token revoked server-side or a skewed clock) with a proactive refresh
         when the server told us the lifetime.
         """
-        if self._expires_at is not None and time.monotonic() >= self._expires_at:
-            self._login()
+        self._refresh_if_expired()
+        seen = self._client.headers.get("Authorization")
         resp = self._send(method, path, **kwargs)
         if resp.status_code == 401 and not path.startswith("/api/oauth2/"):
             # A 401 is refused by the auth layer before the handler runs, so the
             # request had no effect and retrying it cannot apply a write twice.
             # Exactly one retry: looping against a disabled account would bury
             # the real answer under repeated logins.
-            self._login()
+            self._renew(seen)
             resp = self._send(method, path, **kwargs)
         return self._parse(resp, method, path)
+
+    def _refresh_if_expired(self) -> None:
+        if self._expires_at is None or time.monotonic() < self._expires_at:
+            return
+        with self._auth_lock:
+            # Re-checked under the lock: another thread may have renewed already.
+            if self._expires_at is not None and time.monotonic() >= self._expires_at:
+                self._login()
+
+    def _renew(self, seen: str | None) -> None:
+        """Log in again unless another thread already replaced the token ``seen``."""
+        with self._auth_lock:
+            if self._client.headers.get("Authorization") == seen:
+                self._login()
 
     def _send(self, method: str, path: str, **kwargs: Any) -> Any:
         try:
@@ -174,6 +214,7 @@ class VeeamConnection:
                 f"target in config.yaml to allow longer; if that expires too, "
                 f"the endpoint is the bottleneck, not this client.",
                 path=path,
+                timed_out=True,
             ) from exc
         except httpx.HTTPError as exc:
             raise VeeamApiError(

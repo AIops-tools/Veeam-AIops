@@ -127,7 +127,8 @@ Sums Veeam's own per-file accounting from `GET /api/v1/backups/{id}/backupFiles`
 `backupSize` (on disk after compression and deduplication) and `dataSize`
 (before). Other reads: `GET /api/v1/serverInfo` (build → REST revision),
 `GET /api/v1/backupObjects?nameFilter=`, `GET /api/v1/restorePoints?backupObjectIdFilter=`,
-`GET /api/v1/backups/{id}`, `GET /api/v1/jobs/{id}` (retention). Every collection
+`GET /api/v1/backups/{id}`, `GET /api/v1/jobs/{id}` (retention), `GET /api/v1/backupObjects/{id}`
+(ranking: owners a backup does not list). Every collection
 is paged to completion — the server caps a page at 200 by default.
 
 - **Needs VBR 12.3+.** `backupFiles` first appears in REST revision 1.2-rev0
@@ -162,8 +163,42 @@ is paged to completion — the server caps a page at 200 by default.
   `backupsTruncated` are in the payload and the CLI prints an explicit PARTIAL
   line, because the default `max_backups` (100) is below some estates' backup
   count and widening a scan can put a previously unseen object at rank 1.
+- **Scope the scan instead of waiting for the whole estate.** A complete
+  ranking of a 123-backup VBR 13.1 estate took 21 minutes with 4 s of local
+  CPU — the time is the server. `backups` (ids or names; a backup is named
+  after its job) and `repository` (id or name) select what is read; the
+  filter is applied locally because `/backups` offers no repository filter;
+  names come from both plain and scale-out repositories.
+  A scope that matches nothing is an error, not an empty ranking. The payload
+  carries `scoped`, `scope` and `backupsInScope`; a scoped ranking adds a
+  caveat and the CLI prints SCOPED, because it ranks the selection, not the
+  environment. `backupsTruncated` is measured against the scope.
+- **Backups can be read in parallel** (`concurrency`, 1–8, **default 1**).
+  Opt-in because it is unmeasured on a real VBR: the server is already the
+  bottleneck, and parallel reads can push a slow `backupFiles` read past the
+  timeout — lower it if backups time out. Results are folded in scan order, so
+  the payload is identical at any concurrency; a hard error in one read returns
+  at once instead of waiting out the others. Token renewal is serialised, so
+  parallel reads that all meet an expired token log in once. The CLI reports
+  progress on stderr, so `--json` stays parseable.
+- **An owner missing from its backup's listing is looked up** once per id via
+  `GET /api/v1/backupObjects/{id}` (at most 200 ids; the rest are counted in
+  `ownerLookupsSkipped`; the budget goes to the ids carrying the most bytes, and
+  skipped ids get their own caveat rather than the namespace one, since they
+  were never checked). Found → the id is a backup-object id (typically a
+  machine moved to another job or removed from this one), its bytes are
+  charged to that machine and also counted in `recoveredOwnerStoredBytes`.
+  404 or a failed lookup → the bytes stay in `unmatchedOwnerStoredBytes` and
+  the namespace caveat stands. `unmatchedOwners` lists every id with its
+  `resolution` (`otherBackup`, `sameBackup`, `resolved`, `notFound`,
+  `lookupFailed`, `skipped`), largest first, at most 50 entries
+  (`unmatchedOwnersTotal`, `unmatchedOwnersTruncated`). A backup the server
+  lists without an id is reported in `unreadableBackups`, not silently skipped.
 - **One unreadable backup does not blank the result**: it is listed in
-  `unreadableBackups` (with the error) and left out of every total.
+  `unreadableBackups` (with the error) and left out of every total. An entry
+  with `timedOut: true` adds a caveat naming the fix — raise the target's
+  `timeout` in config.yaml (the same estate needed 300 s for `/backupFiles`
+  where the default is 30 s) — since retrying at the same budget cannot help.
 - **The restore-point filter is checked, not trusted.** A query for a random
   object id must come back empty (`restorePointFilter: "honoured"`); then points
   under a machine's old name are kept (`restorePointNamesSeen`). If the server

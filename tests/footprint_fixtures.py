@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from veeam_aiops.connection import VeeamApiError
+
 GiB = 1024**3
 
 
@@ -138,4 +140,7 @@ def ranking_routes() -> dict:
             bfile("f3", "Daily.vbk", ["o1", "o2"], 70 * GiB, 1, "t"),
             bfile("f4", "ghost.vbk", ["zz"], 5 * GiB, 1, "t")],
         "/api/v1/backups/b2/backupFiles": [bfile("c1", "VM01.vbk", ["p1"], 90 * GiB, 1, "t")],
+        # A real server answers an unknown backup-object id with 404, not {}.
+        "/api/v1/backupObjects/zz": VeeamApiError(
+            "Resource not found (404) on /api/v1/backupObjects/zz.", status_code=404),
     }

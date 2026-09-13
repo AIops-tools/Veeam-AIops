@@ -6,6 +6,7 @@ import json
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from veeam_aiops.cli._common import TargetOption, cli_errors, get_connection
@@ -96,12 +97,29 @@ def backup_usage(
 def backup_ranking(
     limit: int = typer.Option(20, "--limit", help="Rows to show (1-500)."),
     max_backups: int = typer.Option(100, "--max-backups", help="Backups to scan (1-1000)."),
+    backup: list[str] | None = typer.Option(
+        None, "--backup",
+        help="Rank only this backup (id or name; a backup is named after its job). Repeatable."),
+    repository: str | None = typer.Option(
+        None, "--repository", help="Rank only backups stored in this repository (id or name)."),
+    concurrency: int = typer.Option(
+        ranking.DEFAULT_CONCURRENCY, "--concurrency",
+        help="Backups read in parallel (1-8, default 1). Unmeasured on a real VBR: "
+             "parallel reads load the same server and can push reads past 'timeout'."),
     as_json: bool = typer.Option(False, "--json", help="Print the full payload as JSON."),
     target: TargetOption = None,
 ) -> None:
     """Protected objects ranked by backup storage consumed, largest first."""
     conn, _ = get_connection(target)
-    out = ranking.storage_ranking(conn, limit=limit, max_backups=max_backups)
+    # Progress goes to stderr: a long scan must not look hung, and --json output
+    # on stdout must stay parseable.
+    err = Console(stderr=True)
+    out = ranking.storage_ranking(
+        conn, limit=limit, max_backups=max_backups, backups=backup, repository=repository,
+        concurrency=concurrency,
+        progress=lambda done, total, label: err.print(
+            f"[dim]scanned {done}/{total} backups ({escape(label)})[/]", highlight=False),
+    )
     if as_json:
         console.print_json(json.dumps(out))
         return
@@ -112,23 +130,50 @@ def backup_ranking(
         table.add_row(str(row["rank"]), row["name"] or row["identity"], _gib(row["storedBytes"]),
                       str(row["files"]), ", ".join(row["backups"]))
     console.print(table)
+    _ranking_summary(out)
+
+
+def _ranking_summary(out: dict) -> None:
     console.print(
         f"{out['returned']} of {out['objectsTotal']} objects; scanned "
-        f"{out['backupsScanned']} of {out['backupsTotal']} backups. Shared: "
+        f"{out['backupsScanned']} of {out['backupsInScope']} backups in scope "
+        f"({out['backupsTotal']} on the server). Shared: "
         f"{_gib(out['sharedStoredBytes'])} GiB, ownerless (per-job chain files): "
-        f"{_gib(out['ownerlessStoredBytes'])} GiB, owner not in its backup: "
-        f"{_gib(out['unmatchedOwnerStoredBytes'])} GiB (none charged)."
+        f"{_gib(out['ownerlessStoredBytes'])} GiB, owner not found: "
+        f"{_gib(out['unmatchedOwnerStoredBytes'])} GiB (none charged). Owner resolved "
+        f"by lookup: {_gib(out['recoveredOwnerStoredBytes'])} GiB (charged)."
     )
+    if out["scoped"]:
+        console.print(f"[yellow]SCOPED: ranks the {out['backupsInScope']} selected "
+                      f"backups only, not the environment.[/]")
     if out["backupsTruncated"]:
         # A ranking of a subset is a valid ranking of that subset and nothing
         # more. Reported on issue #2: raising the scan from 5 to 10 backups put
         # a 38 TiB object at the top that the smaller scan never saw.
         console.print(
             f"[yellow]PARTIAL: ranks only the {out['backupsScanned']} backups "
-            f"scanned, not the environment. Raise --max-backups to "
-            f"{out['backupsTotal']} for a complete ranking.[/]"
+            f"scanned, not all {out['backupsInScope']} in scope. Raise --max-backups "
+            f"to {out['backupsInScope']} for a complete ranking.[/]"
         )
     for bad in out["unreadableBackups"]:
-        console.print(f"[yellow]Unreadable backup {bad['backupName']}: {bad['error']}[/]")
+        console.print(f"[yellow]Unreadable backup {escape(bad['backupName'])}: "
+                      f"{escape(bad['error'])}[/]")
+    timed_out = sum(1 for bad in out["unreadableBackups"] if bad["timedOut"])
+    if timed_out:
+        console.print(
+            f"[yellow]{timed_out} backup(s) timed out and are missing from every total. "
+            f"Raise 'timeout' for this target in config.yaml (a 123-backup VBR 13.1 "
+            f"estate needed 300 s where the default is 30 s), or lower --concurrency "
+            f"if reads ran in parallel, and rerun.[/]"
+        )
+    for owner in out["unmatchedOwners"]:
+        where = owner["objectName"] or "-"
+        console.print(f"[dim]Owner {escape(owner['ownerId'] or '-')} "
+                      f"({_gib(owner['storedBytes'])} GiB in "
+                      f"{escape(', '.join(owner['backupNames']))}): "
+                      f"{escape(owner['resolution'])}, object {escape(where)}[/]")
+    if out["unmatchedOwnersTruncated"]:
+        console.print(f"[dim]… {out['unmatchedOwnersTotal'] - len(out['unmatchedOwners'])} "
+                      f"more owner ids not shown (largest first); see --json.[/]")
     for caveat in out["caveats"]:
         console.print(f"[dim]• {caveat}[/]")

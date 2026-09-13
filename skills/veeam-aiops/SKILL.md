@@ -106,7 +106,7 @@ Needs `uvx` on `PATH`: the MCP server is fetched with uv, pinned to this release
 
 1. `veeam-aiops backup usage <vm-name>` → per backup (primary job and each backup copy): repository, restore points, stored / full / incremental bytes, shared bytes, job retention
 2. Read the caveats before quoting a number: files that hold **several** machines are reported as shared and never added to the VM's total; on block-clone repositories (ReFS / XFS fast clone) the stored total is an upper bound
-3. `veeam-aiops backup ranking --limit 20` → which machines consume the most backup storage, largest first; raise `--max-backups` if `backupsTruncated` is true
+3. `veeam-aiops backup ranking --limit 20` → which machines consume the most backup storage, largest first; raise `--max-backups` if `backupsTruncated` is true. On a large estate scope it (`--backup <job name>` repeatable, `--repository <name>`) — a full scan can take tens of minutes; a SCOPED ranking is not an estate-wide one
 4. Apply your own storage price to the bytes — this tool reports consumption only. **Needs VBR 12.3 or later**; older servers get a clear refusal naming the minimum build.
 
 ### Restore a VM from a restore point

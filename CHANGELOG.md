@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.16.0 — 2026-09-13
+
+Follow-up to the issue #2 rerun on VBR 13.1.1.18, where a complete 123-backup
+ranking took 21 minutes (4 s of it local CPU) and needed a 300 s timeout.
+
+### Added
+- **Scope for `backup_storage_ranking`**: `backups` (ids or names — a backup is
+  named after its job) and `repository` (id or name); CLI `--backup` (repeatable)
+  and `--repository`. Filtered locally, since `/backups` has no repository
+  filter. A scope matching nothing is an error rather than an empty ranking. New
+  payload fields `scoped`, `scope`, `backupsInScope`; `backupsTruncated` is now
+  measured against the scope, and a scoped ranking carries a caveat (CLI:
+  SCOPED) because it is not an estate-wide ranking.
+- **Parallel reads, opt-in**: `concurrency` (1–8, default 1; CLI
+  `--concurrency`). Sequential by default because parallel reads are
+  unmeasured on a real VBR, whose server is already the bottleneck. The payload
+  is identical at any concurrency, a hard error in one read returns at once,
+  and token renewal is serialised so parallel requests meeting an expired
+  token log in once.
+- **Progress** for `veeam-aiops backup ranking` on stderr, so `--json` stays
+  parseable.
+- **Unmatched owners are looked up**: a file naming an owner its own backup does
+  not list is resolved once per id through `/backupObjects/{id}`. When the
+  server knows the object (typically a machine moved to another job) its bytes
+  are charged to that machine and counted in `recoveredOwnerStoredBytes`;
+  otherwise they stay in `unmatchedOwnerStoredBytes`. `unmatchedOwners` reports
+  each id's `resolution` (largest first, at most 50 entries, with
+  `unmatchedOwnersTotal` / `unmatchedOwnersTruncated`); `ownerLookupsSkipped`
+  counts ids past the 200-lookup budget, which get their own caveat instead of
+  the namespace one.
+- **Scale-out repository names** are matched by the repository scope and shown
+  by `backup_object_storage_usage`.
+- **Timeouts are named as such in the ranking**: `unreadableBackups[].timedOut`,
+  a caveat and a CLI line pointing at the target's `timeout` in config.yaml.
+  `VeeamApiError.timed_out` exposes the same fact to any caller.
+
+### Changed
+- `unmatchedOwnerFiles` / `unmatchedOwnerStoredBytes` now count only owners the
+  server could not resolve; resolved ones move to `recoveredOwner*` and into the
+  machine's `storedBytes`. `unresolved*` is still ownerless + unmatched, so it
+  drops against v0.15 by whatever was recovered. The chargeback criterion is
+  unchanged: `unmatchedOwnerFiles` must be 0.
+
+### Fixed
+- A backup the server lists without an id was skipped silently; it is now
+  reported in `unreadableBackups`.
+- A login that timed out was reported as an unreachable server; it now says it
+  timed out and is flagged `timed_out`.
+- An unreadable backup's error was cut at 200 characters without saying so; it
+  now ends with an ellipsis.
+
 ## v0.15.3 — 2026-09-12
 
 ### Changed

@@ -62,7 +62,12 @@ def backup_object_storage_usage(name: str, target: Optional[str] = None) -> dict
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def backup_storage_ranking(
-    limit: int = 20, max_backups: int = 100, target: Optional[str] = None
+    limit: int = 20,
+    max_backups: int = 100,
+    backups: Optional[list[str]] = None,
+    repository: Optional[str] = None,
+    concurrency: int = 1,
+    target: Optional[str] = None,
 ) -> dict:
     """[READ] Protected objects ranked by backup storage consumed, largest first.
 
@@ -72,16 +77,35 @@ def backup_storage_ranking(
     Shared and unattributable files are totals, never charged to anyone, split
     into `ownerlessStoredBytes` (per-job chain files naming no owner — ordinary,
     often large) and `unmatchedOwnerStoredBytes` (a file naming an owner its own
-    backup does not list). Judge whether these numbers can be billed on
+    backup does not list and the server cannot resolve). An owner id missing
+    from its backup's listing is looked up once through /backupObjects/{id};
+    when found (a machine moved to another job) its bytes are charged and also
+    counted in `recoveredOwnerStoredBytes`, and `unmatchedOwners` says how each
+    id resolved (largest ids first; at most 50 entries, `unmatchedOwnersTotal`
+    and `unmatchedOwnersTruncated` say when there are more). Judge whether these
+    numbers can be billed on
     `unmatchedOwnerFiles` being 0, never on the `unresolved*` sum.
-    `truncated` / `backupsTruncated` say when more objects or backups exist than
-    were returned or scanned; a ranking with `backupsTruncated` true ranks only
-    the scanned subset and must not be reported as an estate-wide ranking.
-    Needs VBR 12.3+.
+    A complete scan of a large estate is slow (a 123-backup VBR 13.1 estate took
+    21 minutes): scope it with `backups` or `repository` when the question is
+    about part of the estate. `scoped` true or `backupsTruncated` true means the
+    ranking covers only the selection or the scanned subset and must not be
+    reported as an estate-wide ranking. An entry in `unreadableBackups` with
+    `timedOut` true is fixed by raising the target's `timeout` in config.yaml,
+    not by retrying. Needs VBR 12.3+.
 
     Args:
         limit: Rows to return, 1-500 (default 20).
-        max_backups: Backups to scan, 1-1000 (default 100); raise for full coverage.
+        max_backups: Backups to scan within the scope, 1-1000 (default 100);
+            raise for full coverage.
+        backups: Only these backups, by id or name (a backup is named after its
+            job; see backup_list). Omit for all.
+        repository: Only backups stored in this repository, by id or name.
+        concurrency: Backups read in parallel, 1-8 (default 1, sequential).
+            Unmeasured on a real VBR: parallel reads load the same server and
+            can push reads past the timeout; lower it if backups time out.
         target: Veeam target name from config; omit to use the default.
     """
-    return ranking.storage_ranking(_get_connection(target), limit=limit, max_backups=max_backups)
+    return ranking.storage_ranking(
+        _get_connection(target), limit=limit, max_backups=max_backups,
+        backups=backups, repository=repository, concurrency=concurrency,
+    )

@@ -47,12 +47,42 @@ UNATTRIBUTED_CAVEAT = (
 )
 UNMATCHED_OWNER_CAVEAT = (
     "Some backup files name an owner id that their own backup's object listing "
-    "does not contain, so their bytes are charged to no machine (they are in "
-    "unmatchedOwnerStoredBytes, not in any storedBytes). If that total is large, "
-    "treat this ranking as unsafe for chargeback and report it with the VBR "
-    "build: backup-file owner ids and backup-object ids do not match on it. "
-    "Files naming no owner at all are ordinary per-job chain files and are "
+    "does not contain and that the server could not resolve either (see "
+    "unmatchedOwners for each id and why), so their bytes are charged to no "
+    "machine (they are in unmatchedOwnerStoredBytes). A few small files are "
+    "usually leftovers of an object removed from Veeam's inventory. If that "
+    "total is large, treat this ranking as unsafe for chargeback and report it "
+    "with the VBR build: backup-file owner ids and backup-object ids do not match "
+    "on it. Files naming no owner at all are ordinary per-job chain files and are "
     "counted apart, as ownerlessStoredBytes."
+)
+RECOVERED_OWNER_CAVEAT = (
+    "Some backup files name an owner that their own backup's object listing does "
+    "not contain, but the server still knows that object (GET "
+    "/api/v1/backupObjects/{id}) — typically a machine moved to another job or "
+    "removed from this one, leaving older files behind. Those bytes are charged "
+    "to that machine and also counted in recoveredOwnerStoredBytes; "
+    "unmatchedOwners shows where each id resolved."
+)
+TIMEOUT_CAVEAT = (
+    "Some backups timed out (unreadableBackups[].timedOut) and are missing from "
+    "every total. On a large VBR installation the backupFiles read can "
+    "legitimately exceed the per-request budget — one 13.1 estate needed 300 s "
+    "where the default is 30 s, reading one backup at a time. Raise 'timeout' "
+    "for this target in config.yaml and rerun; if reads ran in parallel, lower "
+    "concurrency (parallel reads load the same server); if it still expires, "
+    "narrow the scan with backups or repository."
+)
+LOOKUP_SKIPPED_CAVEAT = (
+    "Some owner ids missing from their backup's listing were not looked up (the "
+    "per-ranking lookup budget went to the largest ones; see "
+    "ownerLookupsSkipped). Their bytes are in unmatchedOwnerStoredBytes but were "
+    "never checked, so they say nothing yet about id namespaces; scope the "
+    "ranking to the backups they appear in to check them."
+)
+SCOPED_CAVEAT = (
+    "This ranking covers only the backups selected by its scope (backupsInScope "
+    "of backupsTotal). It ranks that selection, not the environment."
 )
 UNREADABLE_CAVEAT = (
     "Some backups could not be read (see unreadableBackups); their bytes are not "
@@ -213,10 +243,18 @@ class Session:
         if not repository_id:
             return None
         if self._repos is None:
-            try:
-                rows = self.all("/api/v1/backupInfrastructure/repositories")
-            except Exception as exc:  # noqa: BLE001 — a name is a label; kept as an error field
-                rows = []
-                self.repository_error = str(exc)[:200]
-            self._repos = {str(r.get("id")): opt_str(r.get("name"), 128) for r in rows}
+            # A backup can live on a plain or a scale-out repository, and the two
+            # are separate collections; either may be refused to a limited role.
+            names: dict[str, str | None] = {}
+            errors: list[str] = []
+            for path in ("/api/v1/backupInfrastructure/repositories",
+                         "/api/v1/backupInfrastructure/scaleOutRepositories"):
+                try:
+                    rows = self.all(path)
+                except Exception as exc:  # noqa: BLE001 — a name is a label; kept as an error field
+                    errors.append(str(exc)[:200])
+                    continue
+                names.update({str(r.get("id")): opt_str(r.get("name"), 128) for r in rows})
+            self._repos = names
+            self.repository_error = "; ".join(errors) or None
         return self._repos.get(str(repository_id))

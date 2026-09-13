@@ -477,7 +477,8 @@ def test_backup_ranking_json_is_the_payload(monkeypatch):
     _wire(monkeypatch, "backup", RouteFake(ranking_routes()))
     result = runner.invoke(app, ["backup", "ranking", "--json"])
     assert result.exit_code == 0, result.output
-    assert json.loads(result.output)["objects"][0]["name"] == "VM01"
+    # stdout only: progress lines go to stderr, which result.output also carries.
+    assert json.loads(result.stdout)["objects"][0]["name"] == "VM01"
 
 
 # ─── history windows ─────────────────────────────────────────────────────────
@@ -534,3 +535,80 @@ def test_backup_ranking_says_so_when_it_ranked_only_part_of_the_estate(monkeypat
     full = runner.invoke(app, ["backup", "ranking"])
     assert full.exit_code == 0
     assert "PARTIAL" not in full.stdout
+
+
+# ─── ranking at estate scale (issue #2 rerun) ────────────────────────────────
+
+
+def _scoped_ranking_routes():
+    from footprint_fixtures import ranking_routes
+
+    routes = ranking_routes()
+    routes["/api/v1/backups"] = [
+        {"id": "b1", "name": "Daily", "repositoryId": "r1", "repositoryName": "REPO-A"},
+        {"id": "b2", "name": "Copy", "repositoryId": "r2", "repositoryName": "DR-S3"}]
+    return routes
+
+
+@pytest.mark.unit
+def test_backup_ranking_scope_options_reach_the_ranking(monkeypatch):
+    import json
+
+    from footprint_fixtures import RouteFake
+
+    from veeam_aiops.cli import app
+
+    _wire(monkeypatch, "backup", RouteFake(_scoped_ranking_routes()))
+    result = runner.invoke(app, ["backup", "ranking", "--json", "--backup", "b1",
+                                 "--backup", "Copy", "--concurrency", "2"])
+    assert result.exit_code == 0, result.output
+    out = json.loads(result.stdout)
+    assert out["scope"] == {"backups": ["b1", "Copy"], "repository": None}
+    assert out["backupsInScope"] == 2
+
+    result = runner.invoke(app, ["backup", "ranking", "--repository", "DR-S3"])
+    assert result.exit_code == 0, result.output
+    assert "SCOPED" in result.stdout
+
+
+@pytest.mark.unit
+def test_backup_ranking_progress_goes_to_stderr_so_json_stays_parseable(monkeypatch):
+    """A 21-minute scan with no output looks hung; stdout must still be pure JSON."""
+    import json
+
+    from footprint_fixtures import RouteFake, ranking_routes
+
+    from veeam_aiops.cli import app
+
+    _wire(monkeypatch, "backup", RouteFake(ranking_routes()))
+    result = runner.invoke(app, ["backup", "ranking", "--json"])
+    assert result.exit_code == 0, result.output
+    json.loads(result.stdout)
+    assert "2/2" in result.stderr
+
+
+@pytest.mark.unit
+def test_backup_ranking_names_the_timeout_knob_when_a_backup_timed_out(monkeypatch):
+    from footprint_fixtures import RouteFake, ranking_routes
+
+    from veeam_aiops.cli import app
+
+    routes = ranking_routes()
+    routes["/api/v1/backups/b2/backupFiles"] = VeeamApiError(
+        "GET /api/v1/backups/b2/backupFiles timed out after 30s.", timed_out=True)
+    _wire(monkeypatch, "backup", RouteFake(routes))
+    result = runner.invoke(app, ["backup", "ranking"])
+    assert result.exit_code == 0, result.output
+    assert "timed out" in result.stdout and "config.yaml" in result.stdout
+
+
+@pytest.mark.unit
+def test_backup_ranking_unknown_scope_exits_1(monkeypatch):
+    from footprint_fixtures import RouteFake
+
+    from veeam_aiops.cli import app
+
+    _wire(monkeypatch, "backup", RouteFake(_scoped_ranking_routes()))
+    result = runner.invoke(app, ["backup", "ranking", "--backup", "nope"])
+    assert result.exit_code == 1
+    assert "matched no backup" in result.stdout

@@ -91,6 +91,15 @@ Properties* lists every file with its size.
       a large ownerless total with per-object attribution intact. This criterion
       previously read `unresolvedFiles`, which merged the two and would have
       failed a healthy server.
+- [ ] `backup ranking --backup <job>` and `--repository <name>` read only the
+      selected backups (compare `backupsInScope` with the console) and print
+      SCOPED; the per-object numbers match the full ranking's rows for them.
+- [ ] `--concurrency 4` produces the same ranking as the default (1); record
+      both wall-clock times and whether any backup newly times out on a large
+      estate (issue #2: 21 min sequential for 123 at a 300 s timeout).
+- [ ] Every `unmatchedOwners` entry: look the id up in the console. `otherBackup`
+      should be a machine that changed jobs; `notFound` one removed from
+      inventory. Issue #2 reported exactly one such file (5 MiB) on VBR 13.1.1.18.
 - [ ] On a VBR 12.1 / 12.2 server the command refuses and names build 12.3.0.310.
 
 ### 3. A reversible write + its undo

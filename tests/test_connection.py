@@ -418,3 +418,112 @@ def test_a_token_that_reports_its_lifetime_is_renewed_before_it_expires(monkeypa
     conn.get("/api/v1/jobs")
     assert calls["token"] == 2, "expected a proactive refresh before the call"
     assert calls["api"] == 1, "and no wasted 401 round-trip"
+
+
+# ─── timeout flag and concurrent renewal (ranking runs backups in parallel) ──
+
+
+@pytest.mark.unit
+def test_a_timeout_error_says_it_timed_out(monkeypatch):
+    """Callers (the ranking) branch on this instead of parsing the message."""
+    def _timeout(method, path, **k):
+        raise httpx.ReadTimeout("timed out")
+
+    _install_client(monkeypatch, request_fn=_timeout)
+    conn = VeeamConnection(_target(monkeypatch))
+    with pytest.raises(VeeamApiError) as ei:
+        conn.get("/api/v1/backups/b1/backupFiles")
+    assert ei.value.timed_out is True
+
+
+@pytest.mark.unit
+def test_a_transport_error_is_not_flagged_as_a_timeout(monkeypatch):
+    def _refused(method, path, **k):
+        raise httpx.ConnectError("refused")
+
+    _install_client(monkeypatch, request_fn=_refused)
+    conn = VeeamConnection(_target(monkeypatch))
+    with pytest.raises(VeeamApiError) as ei:
+        conn.get("/api/v1/jobs")
+    assert ei.value.timed_out is False
+
+
+@pytest.mark.unit
+def test_a_401_already_renewed_by_another_thread_does_not_log_in_again(monkeypatch):
+    """Parallel reads that all hit an expired token must not stampede the login."""
+    calls = _token_client(monkeypatch, [200])
+    conn = VeeamConnection(_target(monkeypatch))
+    stale = conn._client.headers["Authorization"]
+    conn._renew(stale)                       # first thread: renews
+    assert calls["token"] == 2
+    conn._renew(stale)                       # second thread saw the same stale token
+    assert calls["token"] == 2, "the token had already been renewed"
+
+
+@pytest.mark.unit
+def test_concurrent_401s_retry_with_one_renewal(monkeypatch):
+    import threading
+
+    lock = threading.Lock()
+    calls = {"token": 0, "api": 0}
+
+    class _Client:
+        def __init__(self, *a, **k):
+            self.headers = {}
+
+        def post(self, path, **k):
+            with lock:
+                calls["token"] += 1
+                n = calls["token"]
+            return _Resp(200, {"access_token": f"TOK{n}"})
+
+        def request(self, method, path, **k):
+            with lock:
+                calls["api"] += 1
+            ok = self.headers.get("Authorization") != "Bearer TOK1"
+            if not ok:
+                # Hold every stale-token request until all four carry TOK1, so
+                # all four are refused before any thread renews — the race the
+                # dedupe exists for, instead of threads that happen to run in turn.
+                stale.wait()
+            return _Resp(200 if ok else 401, {"ok": True} if ok else {}, text="x")
+
+        def close(self):
+            pass
+
+    stale = threading.Barrier(4, timeout=5)
+    monkeypatch.setattr(httpx, "Client", _Client)
+    conn = VeeamConnection(_target(monkeypatch))
+    gate = threading.Barrier(4, timeout=5)
+    results: list = []
+
+    def worker():
+        gate.wait()
+        results.append(conn.get("/api/v1/backups"))
+
+    threads = [threading.Thread(target=worker) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert results == [{"ok": True}] * 4
+    assert calls["token"] == 2, "one initial login plus exactly one renewal"
+
+
+@pytest.mark.unit
+def test_a_login_that_times_out_is_flagged(monkeypatch):
+    class _Client:
+        def __init__(self, *a, **k):
+            self.headers = {}
+
+        def post(self, path, **k):
+            raise httpx.ReadTimeout("slow")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(httpx, "Client", _Client)
+    with pytest.raises(VeeamApiError) as ei:
+        VeeamConnection(_target(monkeypatch))
+    assert ei.value.timed_out is True
+    assert "timed out" in str(ei.value)
