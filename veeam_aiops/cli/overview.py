@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 
-from veeam_aiops.cli._common import TargetOption, cli_errors, console, get_connection
+from veeam_aiops.cli._common import TargetOption, audited, cli_errors, console, get_connection
 from veeam_aiops.ops import overview
 
 
 @cli_errors
+@audited
 def overview_cmd(target: TargetOption = None) -> None:
     """Health summary: jobs by last result, repos near full, running sessions."""
     conn, _ = get_connection(target)

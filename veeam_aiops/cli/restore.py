@@ -12,6 +12,7 @@ from mcp_server.tools import restore as gov
 from veeam_aiops.cli._common import (
     DryRunOption,
     TargetOption,
+    audited,
     cli_errors,
     double_confirm,
     dry_run_print,
@@ -26,6 +27,7 @@ console = Console()
 
 @restore_app.command("list-points")
 @cli_errors
+@audited
 def restore_list_points(
     target: TargetOption = None,
     backup_id: str = typer.Option(None, "--backup-id", help="Filter to one backup's points"),

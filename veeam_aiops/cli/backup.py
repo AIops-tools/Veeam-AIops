@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from veeam_aiops.cli._common import TargetOption, cli_errors, get_connection
+from veeam_aiops.cli._common import TargetOption, audited, cli_errors, get_connection
 from veeam_aiops.ops import backups, footprint, ranking
 
 backup_app = typer.Typer(help="Stored backup operations.", no_args_is_help=True)
@@ -18,6 +18,7 @@ console = Console()
 
 @backup_app.command("list")
 @cli_errors
+@audited
 def backup_list(target: TargetOption = None) -> None:
     """List stored backups (id, name, type, creationTime)."""
     conn, _ = get_connection(target)
@@ -32,6 +33,7 @@ def backup_list(target: TargetOption = None) -> None:
 
 @backup_app.command("objects")
 @cli_errors
+@audited
 def backup_objects(backup_id: str, target: TargetOption = None) -> None:
     """List the protected objects (VMs/agents) inside a stored backup."""
     conn, _ = get_connection(target)
@@ -50,6 +52,7 @@ def _gib(value: int | None) -> str:
 
 @backup_app.command("usage")
 @cli_errors
+@audited
 def backup_usage(
     name: str = typer.Argument(..., help="Protected object name as Veeam shows it."),
     as_json: bool = typer.Option(False, "--json", help="Print the full payload as JSON."),
@@ -94,6 +97,7 @@ def backup_usage(
 
 @backup_app.command("ranking")
 @cli_errors
+@audited
 def backup_ranking(
     limit: int = typer.Option(20, "--limit", help="Rows to show (1-500)."),
     max_backups: int = typer.Option(100, "--max-backups", help="Backups to scan (1-1000)."),

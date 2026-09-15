@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from veeam_aiops.cli._common import TargetOption, cli_errors, get_connection
+from veeam_aiops.cli._common import TargetOption, audited, cli_errors, get_connection
 from veeam_aiops.ops import diagnostics as diag
 from veeam_aiops.ops import repositories as repo_ops
 from veeam_aiops.ops import sessions as session_ops
@@ -40,6 +40,7 @@ def _print_findings(findings: list[dict]) -> None:
 
 @diagnose_app.command("job-failures")
 @cli_errors
+@audited
 def diagnose_job_failures(
     target: TargetOption = None,
     limit: int = typer.Option(100, "--limit", help="Newest sessions to analyse (1-1000)."),
@@ -69,6 +70,7 @@ def diagnose_job_failures(
 
 @diagnose_app.command("repo-capacity")
 @cli_errors
+@audited
 def diagnose_repo_capacity(target: TargetOption = None) -> None:
     """Flag repositories low on free space (<15% warn, <10% critical)."""
     conn, _ = get_connection(target)

@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from veeam_aiops.cli._common import TargetOption, cli_errors, get_connection
+from veeam_aiops.cli._common import TargetOption, audited, cli_errors, get_connection
 from veeam_aiops.ops import repositories
 
 repository_app = typer.Typer(help="Backup repository operations.", no_args_is_help=True)
@@ -15,6 +15,7 @@ console = Console()
 
 @repository_app.command("list")
 @cli_errors
+@audited
 def repository_list(target: TargetOption = None) -> None:
     """List backup repositories (id, name, type, path)."""
     conn, _ = get_connection(target)
@@ -29,6 +30,7 @@ def repository_list(target: TargetOption = None) -> None:
 
 @repository_app.command("get")
 @cli_errors
+@audited
 def repository_get(repository_id: str, target: TargetOption = None) -> None:
     """Show detail for one repository (incl. capacity/free/used when known)."""
     conn, _ = get_connection(target)
@@ -38,6 +40,7 @@ def repository_get(repository_id: str, target: TargetOption = None) -> None:
 
 @repository_app.command("state")
 @cli_errors
+@audited
 def repository_state(target: TargetOption = None) -> None:
     """Capacity summary for every repository (capacity/free/used/used%)."""
     conn, _ = get_connection(target)

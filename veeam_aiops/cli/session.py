@@ -12,6 +12,7 @@ from mcp_server.tools import sessions as gov
 from veeam_aiops.cli._common import (
     DryRunOption,
     TargetOption,
+    audited,
     cli_errors,
     double_confirm,
     dry_run_print,
@@ -27,6 +28,7 @@ console = Console()
 
 @session_app.command("list")
 @cli_errors
+@audited
 def session_list(
     target: TargetOption = None,
     limit: int = typer.Option(100, "--limit", help="Newest sessions to show (1-1000)."),
@@ -47,6 +49,7 @@ def session_list(
 
 @session_app.command("get")
 @cli_errors
+@audited
 def session_get(session_id: str, target: TargetOption = None) -> None:
     """Poll one session to check job/restore progress."""
     conn, _ = get_connection(target)
@@ -56,6 +59,7 @@ def session_get(session_id: str, target: TargetOption = None) -> None:
 
 @session_app.command("log")
 @cli_errors
+@audited
 def session_log(session_id: str, target: TargetOption = None) -> None:
     """Show the log records (events) of one session."""
     conn, _ = get_connection(target)

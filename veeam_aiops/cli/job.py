@@ -12,6 +12,7 @@ from mcp_server.tools import jobs as gov
 from veeam_aiops.cli._common import (
     DryRunOption,
     TargetOption,
+    audited,
     cli_errors,
     double_confirm,
     dry_run_print,
@@ -26,6 +27,7 @@ console = Console()
 
 @job_app.command("list")
 @cli_errors
+@audited
 def job_list(target: TargetOption = None) -> None:
     """List backup jobs (id, name, type, status, lastResult)."""
     conn, _ = get_connection(target)
@@ -40,6 +42,7 @@ def job_list(target: TargetOption = None) -> None:
 
 @job_app.command("get")
 @cli_errors
+@audited
 def job_get(job_id: str, target: TargetOption = None) -> None:
     """Show detail for one backup job."""
     conn, _ = get_connection(target)
