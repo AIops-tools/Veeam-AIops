@@ -1,5 +1,8 @@
 # Release notes — veeam-aiops 0.8.0
 
+> Historical — this file covers the 0.8.0 release only and is not updated.
+> For every release since, see [CHANGELOG.md](CHANGELOG.md) and the GitHub releases.
+
 Previous release: 0.7.0.
 
 ## Preview fidelity
