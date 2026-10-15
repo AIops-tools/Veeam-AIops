@@ -57,7 +57,7 @@ def _audit_tools(db_path) -> list[str]:
 def test_cli_job_write_goes_through_governed_twin(
     gov_home, monkeypatch, fake_veeam, cmd, endpoint, tool
 ):
-    import mcp_server.tools.jobs as gov_jobs
+    import veeam_aiops.mcp_server.tools.jobs as gov_jobs
     from veeam_aiops.cli import app
 
     fake = fake_veeam(responses={"/api/v1/jobs/job-1": {"status": "Idle"}})
@@ -87,7 +87,7 @@ def test_cli_job_write_dry_run_writes_nothing_but_is_still_audited(
     were the same-tier siblings of ``job stop`` but had no ``--dry-run`` flag at
     all. Now they render the human banner AND land an audit row (the MCP path
     always did), while issuing no mutating REST call."""
-    import mcp_server.tools.jobs as gov_jobs
+    import veeam_aiops.mcp_server.tools.jobs as gov_jobs
     from veeam_aiops.cli import app
 
     fake = fake_veeam()
@@ -109,7 +109,7 @@ def test_cli_session_stop_dry_run_writes_nothing_but_is_still_audited(
 ):
     """A dry_run MAY read; it must never write. It is audited like any other
     governed call — the MCP path always was, the CLI was the inconsistency."""
-    import mcp_server.tools.sessions as gov_sessions
+    import veeam_aiops.mcp_server.tools.sessions as gov_sessions
     from veeam_aiops.cli import app
 
     fake = fake_veeam()
@@ -124,7 +124,7 @@ def test_cli_session_stop_dry_run_writes_nothing_but_is_still_audited(
 
 @pytest.mark.unit
 def test_cli_session_stop_confirmed_goes_through_governance(gov_home, monkeypatch, fake_veeam):
-    import mcp_server.tools.sessions as gov_sessions
+    import veeam_aiops.mcp_server.tools.sessions as gov_sessions
     from veeam_aiops.cli import app
 
     fake = fake_veeam(responses={"/api/v1/sessions/sess-1": {}})
@@ -137,7 +137,7 @@ def test_cli_session_stop_confirmed_goes_through_governance(gov_home, monkeypatc
 
 @pytest.mark.unit
 def test_cli_session_stop_aborts_without_second_confirm(gov_home, monkeypatch, fake_veeam):
-    import mcp_server.tools.sessions as gov_sessions
+    import veeam_aiops.mcp_server.tools.sessions as gov_sessions
     from veeam_aiops.cli import app
 
     fake = fake_veeam()
@@ -156,7 +156,7 @@ def test_cli_restore_start_dry_run_names_the_vm_it_would_overwrite(
 ):
     """Dry-run must show what a GUID actually is: nobody can approve an
     irreversible in-place restore from an opaque id."""
-    import mcp_server.tools.restore as gov_restore
+    import veeam_aiops.mcp_server.tools.restore as gov_restore
     from veeam_aiops.cli import app
 
     fake = fake_veeam(
@@ -184,7 +184,7 @@ def test_cli_restore_start_dry_run_names_the_vm_it_would_overwrite(
 
 @pytest.mark.unit
 def test_cli_restore_start_confirmed_posts_and_audits(gov_home, monkeypatch, fake_veeam):
-    import mcp_server.tools.restore as gov_restore
+    import veeam_aiops.mcp_server.tools.restore as gov_restore
     from veeam_aiops.cli import app
 
     fake = fake_veeam(responses={

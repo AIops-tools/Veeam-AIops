@@ -172,7 +172,7 @@ def test_unknown_target_host_does_not_match_a_blank_vm_name(fake_veeam):
 @pytest.mark.unit
 def test_the_mcp_tool_refuses(monkeypatch, fake_veeam, tmp_path):
     """A guard that only covers the ops layer is one an agent can walk past."""
-    import mcp_server.tools.restore as gov_restore
+    import veeam_aiops.mcp_server.tools.restore as gov_restore
 
     monkeypatch.setenv("VEEAM_AIOPS_HOME", str(tmp_path))
     conn = _conn(fake_veeam, _VBR_POINT)
@@ -186,7 +186,7 @@ def test_the_mcp_tool_refuses(monkeypatch, fake_veeam, tmp_path):
 def test_the_cli_refuses_too(monkeypatch, fake_veeam, tmp_path):
     from typer.testing import CliRunner
 
-    import mcp_server.tools.restore as gov_restore
+    import veeam_aiops.mcp_server.tools.restore as gov_restore
     from veeam_aiops.cli import app
 
     monkeypatch.setenv("VEEAM_AIOPS_HOME", str(tmp_path))
@@ -245,7 +245,7 @@ def test_preview_refuses_the_vbr_server_rather_than_flagging_it(fake_veeam):
 @pytest.mark.unit
 def test_mcp_dry_run_on_the_self_target_is_refused(monkeypatch, fake_veeam, tmp_path):
     """Green preview → refusal reads to a model as a transient error to retry."""
-    import mcp_server.tools.restore as gov_restore
+    import veeam_aiops.mcp_server.tools.restore as gov_restore
 
     monkeypatch.setenv("VEEAM_AIOPS_HOME", str(tmp_path))
     conn = _conn(fake_veeam, _VBR_POINT)
@@ -259,7 +259,7 @@ def test_mcp_dry_run_on_the_self_target_is_refused(monkeypatch, fake_veeam, tmp_
 @pytest.mark.unit
 def test_mcp_dry_run_on_any_other_target_still_previews(monkeypatch, fake_veeam, tmp_path):
     """The dry-run must never refuse what the real call would allow."""
-    import mcp_server.tools.restore as gov_restore
+    import veeam_aiops.mcp_server.tools.restore as gov_restore
 
     monkeypatch.setenv("VEEAM_AIOPS_HOME", str(tmp_path))
     conn = _conn(fake_veeam, _OTHER_POINT)
@@ -286,7 +286,7 @@ def test_dry_run_and_the_real_call_treat_an_unknown_target_identically(fake_veea
 def test_cli_dry_run_on_the_self_target_is_refused(monkeypatch, fake_veeam, tmp_path):
     from typer.testing import CliRunner
 
-    import mcp_server.tools.restore as gov_restore
+    import veeam_aiops.mcp_server.tools.restore as gov_restore
     from veeam_aiops.cli import app
 
     monkeypatch.setenv("VEEAM_AIOPS_HOME", str(tmp_path))

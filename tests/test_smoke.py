@@ -74,16 +74,16 @@ def test_all_modules_import():
         "veeam_aiops.cli.overview",
         "veeam_aiops.cli.diagnostics",
         "veeam_aiops.cli.doctor",
-        "mcp_server.server",
-        "mcp_server._shared",
-        "mcp_server.tools.jobs",
-        "mcp_server.tools.restore",
-        "mcp_server.tools.repositories",
-        "mcp_server.tools.sessions",
-        "mcp_server.tools.backups",
-        "mcp_server.tools.infrastructure",
-        "mcp_server.tools.overview",
-        "mcp_server.tools.diagnostics",
+        "veeam_aiops.mcp_server.server",
+        "veeam_aiops.mcp_server._shared",
+        "veeam_aiops.mcp_server.tools.jobs",
+        "veeam_aiops.mcp_server.tools.restore",
+        "veeam_aiops.mcp_server.tools.repositories",
+        "veeam_aiops.mcp_server.tools.sessions",
+        "veeam_aiops.mcp_server.tools.backups",
+        "veeam_aiops.mcp_server.tools.infrastructure",
+        "veeam_aiops.mcp_server.tools.overview",
+        "veeam_aiops.mcp_server.tools.diagnostics",
     ):
         importlib.import_module(name)
 
@@ -150,7 +150,7 @@ def test_cli_leaf_help_triggers_lazy_imports():
 
 @pytest.mark.unit
 def test_mcp_list_tools_exposes_expected_tools():
-    from mcp_server.server import mcp
+    from veeam_aiops.mcp_server.server import mcp
 
     tools = asyncio.run(mcp.list_tools())
     names = {t.name for t in tools}
@@ -160,7 +160,7 @@ def test_mcp_list_tools_exposes_expected_tools():
 @pytest.mark.unit
 def test_registered_tool_count_matches_docs():
     """Drift guard: the advertised tool count must match the MCP registry."""
-    from mcp_server import _shared
+    from veeam_aiops.mcp_server import _shared
 
     assert len(_shared.mcp._tool_manager._tools) == 27, (
         "tool count changed — update README/SKILL/server.json too"
@@ -170,7 +170,7 @@ def test_registered_tool_count_matches_docs():
 @pytest.mark.unit
 def test_every_mcp_tool_is_governed_by_harness():
     """Every registered tool callable must carry the @governed_tool marker."""
-    from mcp_server import _shared
+    from veeam_aiops.mcp_server import _shared
 
     tool_objs = _shared.mcp._tool_manager._tools
     assert EXPECTED_TOOLS <= set(tool_objs), "tool registry incomplete"
@@ -190,7 +190,7 @@ def test_write_tool_records_undo_token_via_harness(monkeypatch):
     undo lambda on success and persists the inverse to the undo store.
     """
     import veeam_aiops.governance.undo as undo_mod
-    from mcp_server.tools import jobs as job_tools
+    from veeam_aiops.mcp_server.tools import jobs as job_tools
 
     conn = MagicMock(name="conn")
     conn.post.return_value = {}
@@ -290,7 +290,7 @@ def test_risk_level_agrees_with_read_write_docstring_tag():
     16 such mislabels line-wide once, so it is kept even though read-only mode
     (its original motivation) is gone.
     """
-    from mcp_server import server
+    from veeam_aiops.mcp_server import server
 
     untagged, mismatched = [], []
     for name, tool in server.mcp._tool_manager._tools.items():

@@ -1,4 +1,4 @@
-"""mcp_server._shared primitives: error sanitisation, ``tool_errors`` shapes,
+"""veeam_aiops.mcp_server._shared primitives: error sanitisation, ``tool_errors`` shapes,
 and lazy connection init.
 
 The tool bodies rely on ``_safe_error`` to pass through known exception text
@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from mcp_server import _shared
 from veeam_aiops.connection import VeeamApiError
+from veeam_aiops.mcp_server import _shared
 
 # ─── _safe_error ─────────────────────────────────────────────────────────────
 

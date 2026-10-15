@@ -18,13 +18,13 @@ import pytest
 import veeam_aiops.governance.audit as audit_mod
 import veeam_aiops.governance.policy as policy_mod
 import veeam_aiops.governance.undo as undo_mod
-from mcp_server.tools import backups as backups_tools
-from mcp_server.tools import infrastructure as infra_tools
-from mcp_server.tools import jobs as jobs_tools
-from mcp_server.tools import overview as overview_tools
-from mcp_server.tools import repositories as repo_tools
-from mcp_server.tools import restore as restore_tools
-from mcp_server.tools import sessions as sessions_tools
+from veeam_aiops.mcp_server.tools import backups as backups_tools
+from veeam_aiops.mcp_server.tools import infrastructure as infra_tools
+from veeam_aiops.mcp_server.tools import jobs as jobs_tools
+from veeam_aiops.mcp_server.tools import overview as overview_tools
+from veeam_aiops.mcp_server.tools import repositories as repo_tools
+from veeam_aiops.mcp_server.tools import restore as restore_tools
+from veeam_aiops.mcp_server.tools import sessions as sessions_tools
 
 
 @pytest.fixture(autouse=True)
@@ -624,7 +624,7 @@ def test_storage_ranking_tool_reports_an_unknown_scope_as_an_error(monkeypatch):
 def test_job_failure_rca_says_when_older_sessions_were_not_analysed(monkeypatch):
     from footprint_fixtures import RouteFake
 
-    from mcp_server.tools import diagnostics as diag_tools
+    from veeam_aiops.mcp_server.tools import diagnostics as diag_tools
 
     rows = [{"id": f"s{i}", "name": f"job-{i}", "state": "Stopped",
              "result": {"result": "Failed" if i == 0 else "Success"}} for i in range(150)]
@@ -642,7 +642,7 @@ def test_job_failure_rca_says_when_older_sessions_were_not_analysed(monkeypatch)
 def test_job_failure_rca_time_window_reaches_the_server(monkeypatch):
     from footprint_fixtures import RouteFake
 
-    from mcp_server.tools import diagnostics as diag_tools
+    from veeam_aiops.mcp_server.tools import diagnostics as diag_tools
 
     fake = RouteFake({"/api/v1/sessions": []}, build=None)
     _wire(monkeypatch, diag_tools, fake)

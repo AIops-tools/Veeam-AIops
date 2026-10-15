@@ -1,7 +1,7 @@
 """CLI confirmed-write path — past dry-run, through governance, onto disk.
 
 The CLI write commands delegate real execution to the ``@governed_tool``
-functions in ``mcp_server.tools``. These tests drive a write command PAST the
+functions in ``veeam_aiops.mcp_server.tools``. These tests drive a write command PAST the
 dry-run branch and the double-confirm prompts and assert the call really went
 through the governed path (audit row on disk) — the regression test for the
 "CLI writes were unaudited" line-wide fix.
@@ -47,7 +47,7 @@ def test_cli_job_stop_dry_run_writes_nothing_but_is_still_audited(
     I/O". A preview that cannot read cannot answer "would this be refused?", and
     the CLI not auditing its previews was the outlier: the MCP path already
     audits them, because @governed_tool wraps the tool regardless of dry_run."""
-    import mcp_server.tools.jobs as gov_jobs
+    import veeam_aiops.mcp_server.tools.jobs as gov_jobs
     from veeam_aiops.cli import app
 
     fake = fake_veeam()
@@ -63,7 +63,7 @@ def test_cli_job_stop_dry_run_writes_nothing_but_is_still_audited(
 def test_cli_job_stop_confirmed_goes_through_governance(gov_home, monkeypatch, fake_veeam):
     """Confirmed CLI write must execute via the governed twin: the POST runs
     AND an audit row lands in audit.db (this is what the reroute fix bought)."""
-    import mcp_server.tools.jobs as gov_jobs
+    import veeam_aiops.mcp_server.tools.jobs as gov_jobs
     from veeam_aiops.cli import app
 
     fake = fake_veeam(responses={"/api/v1/jobs/job-1": {"status": "Working"}})
@@ -82,7 +82,7 @@ def test_cli_job_stop_dry_run_renders_the_banner_when_permitted(
     gov_home, monkeypatch, fake_veeam
 ):
     """Control: an ordinary preview still renders the human-readable banner."""
-    import mcp_server.tools.jobs as gov_jobs
+    import veeam_aiops.mcp_server.tools.jobs as gov_jobs
     from veeam_aiops.cli import app
 
     fake = fake_veeam()
@@ -97,7 +97,7 @@ def test_cli_job_stop_dry_run_renders_the_banner_when_permitted(
 
 @pytest.mark.unit
 def test_cli_job_stop_aborts_without_double_confirm(gov_home, monkeypatch, fake_veeam):
-    import mcp_server.tools.jobs as gov_jobs
+    import veeam_aiops.mcp_server.tools.jobs as gov_jobs
     from veeam_aiops.cli import app
 
     fake = fake_veeam()

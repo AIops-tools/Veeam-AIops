@@ -8,7 +8,6 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from mcp_server.tools import sessions as gov
 from veeam_aiops.cli._common import (
     DryRunOption,
     TargetOption,
@@ -19,6 +18,7 @@ from veeam_aiops.cli._common import (
     get_connection,
     governed,
 )
+from veeam_aiops.mcp_server.tools import sessions as gov
 from veeam_aiops.ops import sessions
 
 session_app = typer.Typer(help="Session (async job/restore progress) operations.",

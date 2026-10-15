@@ -168,7 +168,7 @@ def test_cli_renders_rows_with_null_fields(monkeypatch, fake_veeam):
 @pytest.mark.unit
 def test_undo_list_envelope_reports_truncation(monkeypatch):
     """``truncated`` is measured (one extra row fetched), not guessed."""
-    from mcp_server.tools import undo as gov
+    from veeam_aiops.mcp_server.tools import undo as gov
 
     class _Store:
         def __init__(self) -> None:
@@ -200,7 +200,7 @@ def test_undo_list_envelope_reports_truncation(monkeypatch):
 
 @pytest.mark.unit
 def test_undo_list_envelope_is_honest_when_not_truncated(monkeypatch):
-    from mcp_server.tools import undo as gov
+    from veeam_aiops.mcp_server.tools import undo as gov
 
     class _Store:
         def list(self, *, status: str, limit: int) -> list[dict]:

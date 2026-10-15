@@ -127,7 +127,7 @@ def test_real_write_tool_persists_priorstate_undo(gov_home, monkeypatch, fake_ve
         responses={"/api/v1/jobs/job-1": {"status": "Working", "lastResult": "None"}}
     )
 
-    from mcp_server.tools import jobs as gov
+    from veeam_aiops.mcp_server.tools import jobs as gov
 
     monkeypatch.setattr(gov, "_get_connection", lambda target=None: fake)
     result = gov.job_stop(job_id="job-1")

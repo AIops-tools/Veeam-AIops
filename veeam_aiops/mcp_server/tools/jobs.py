@@ -9,8 +9,8 @@ to the undo store (start↔stop, enable↔disable).
 
 from typing import Optional
 
-from mcp_server._shared import _get_connection, mcp, tool_errors
 from veeam_aiops.governance import governed_tool
+from veeam_aiops.mcp_server._shared import _get_connection, mcp, tool_errors
 from veeam_aiops.ops import jobs as ops
 
 

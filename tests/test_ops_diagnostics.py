@@ -14,7 +14,7 @@ import pytest
 import veeam_aiops.governance.audit as audit_mod
 import veeam_aiops.governance.policy as policy_mod
 import veeam_aiops.governance.undo as undo_mod
-from mcp_server.tools import diagnostics as diag_tools
+from veeam_aiops.mcp_server.tools import diagnostics as diag_tools
 from veeam_aiops.ops import diagnostics as diag
 
 

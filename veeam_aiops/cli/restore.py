@@ -8,7 +8,6 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from mcp_server.tools import restore as gov
 from veeam_aiops.cli._common import (
     DryRunOption,
     TargetOption,
@@ -19,6 +18,7 @@ from veeam_aiops.cli._common import (
     get_connection,
     governed,
 )
+from veeam_aiops.mcp_server.tools import restore as gov
 from veeam_aiops.ops import restore
 
 restore_app = typer.Typer(help="Restore operations.", no_args_is_help=True)

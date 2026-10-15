@@ -2,7 +2,7 @@
 
 Portable across the whole tool line: references ONLY
 ``veeam_aiops.governance.patterns`` and binds state to an isolated home via
-``VEEAM_AIOPS_HOME``. No ops / cli / connection / mcp_server imports.
+``VEEAM_AIOPS_HOME``. No ops / cli / connection / veeam_aiops.mcp_server imports.
 
 Exercises pattern loading + signature validation, the armable preconditions,
 skill/tool/target matching, rate limiting, the circuit breaker's state

@@ -60,7 +60,7 @@ REST API endpoint. No post-install scripts or background services.
 ## Static Analysis
 
 ```bash
-uvx bandit -r veeam_aiops/ mcp_server/
+uvx bandit -r veeam_aiops/
 uv run ruff check .
 ```
 

@@ -2,8 +2,8 @@
 
 from typing import Optional
 
-from mcp_server._shared import _get_connection, mcp, tool_errors
 from veeam_aiops.governance import governed_tool
+from veeam_aiops.mcp_server._shared import _get_connection, mcp, tool_errors
 from veeam_aiops.ops import backups as ops
 from veeam_aiops.ops import footprint, ranking
 
