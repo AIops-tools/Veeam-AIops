@@ -130,6 +130,7 @@ def job_failure_findings(
     sessions_truncated: bool | None = None,
     sessions_since: str | None = None,
     logs_unreadable: list[str] | None = None,
+    logs_incomplete: list[str] | None = None,
 ) -> dict:
     """[ANALYSIS] Flag Failed/Warning backup-job sessions and categorize the cause.
 
@@ -137,7 +138,7 @@ def job_failure_findings(
         session_rows: recent sessions from ``ops.sessions.list_sessions`` — each
             with ``id``, ``name``, ``type``, ``state``, ``result``.
         error_index: optional map of ``session id -> [failing log titles]`` (from
-            ``ops.sessions.get_session_log``) used to classify the cause and cite
+            ``ops.sessions.collect_failure_logs_detail``) used to classify the cause and cite
             the measured error substring.
 
     Returns the worst-first ``findings`` list plus counts. ``sessionsTruncated``
@@ -146,6 +147,8 @@ def job_failure_findings(
     ``sessionsSince`` echoes the caller's time window (``None``: no window).
     ``logsUnreadable`` lists sessions whose log could not be read — their cause
     is "not auto-classified" because nobody could look, not because nothing matched.
+    ``logsIncomplete`` lists sessions whose log the server returned only part of
+    (fewer records than its ``totalRecords``) — the failing record may be missing.
     """
     idx = error_index or {}
     findings: list[dict] = []
@@ -170,6 +173,7 @@ def job_failure_findings(
         "sessionsTruncated": sessions_truncated,
         "sessionsSince": sessions_since,
         "logsUnreadable": logs_unreadable,
+        "logsIncomplete": logs_incomplete,
         "failures": len(findings),
     }
 

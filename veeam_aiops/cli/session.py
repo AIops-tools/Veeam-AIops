@@ -63,13 +63,19 @@ def session_get(session_id: str, target: TargetOption = None) -> None:
 def session_log(session_id: str, target: TargetOption = None) -> None:
     """Show the log records (events) of one session."""
     conn, _ = get_connection(target)
-    rows = sessions.get_session_log(conn, session_id)
+    env = sessions.session_log_envelope(conn, session_id)
+    rows = env["records"]
     table = Table(title=f"Session log {session_id}")
     for col in ("title", "status", "startTime", "updateTime", "description"):
         table.add_column(col, overflow="fold")
     for r in rows:
         table.add_row(r["title"], r["status"], r["startTime"], r["updateTime"], r["description"])
     console.print(table)
+    if env["truncated"]:
+        console.print(f"[yellow]… {env['returned']} of {env['totalRecords']} records shown — "
+                      "the server returned only part of this log.[/]")
+    elif env["truncated"] is None:
+        console.print("[yellow]… the server did not report a total; this log may be incomplete.[/]")
 
 
 @session_app.command("stop")

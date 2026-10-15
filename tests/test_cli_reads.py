@@ -105,6 +105,19 @@ def test_session_log_renders_records(monkeypatch, fake_veeam):
     assert result.exit_code == 0, result.output
     assert fake.paths("GET") == ["/api/v1/sessions/sess-1/logs"]
     assert "Succeeded" in result.output and "Queued for processing" in result.output
+    assert "only part of this log" not in result.output
+
+
+@pytest.mark.unit
+def test_session_log_says_when_the_server_cut_it_short(monkeypatch, fake_veeam):
+    from veeam_aiops.cli import app
+
+    fake = fake_veeam(responses={"/api/v1/sessions/sess-1/logs": {
+        "totalRecords": 40, "records": [{"id": 1, "title": "x", "status": "Failed"}]}})
+    _wire(monkeypatch, "session", fake)
+    result = runner.invoke(app, ["session", "log", "sess-1"], env={"COLUMNS": "200"})
+    assert result.exit_code == 0, result.output
+    assert "1 of 40 records shown" in result.output
 
 
 # ─── repository ──────────────────────────────────────────────────────────────

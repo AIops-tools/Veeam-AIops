@@ -151,18 +151,39 @@ def get_session_log(conn: Any, session_id: str) -> list[dict]:
     Each record is reduced to its title, description (where Veeam puts the
     error detail), status, and timing (``startTime`` / ``updateTime``).
     """
+    return session_log_envelope(conn, session_id)["records"]
+
+
+def _norm_log_record(rec: dict) -> dict:
+    return {
+        "title": opt_str(rec.get("title", rec.get("name")), 200),
+        "description": opt_str(rec.get("description"), 400),
+        "status": opt_str(rec.get("status"), 32),
+        "startTime": opt_str(rec.get("startTime"), 64),
+        "updateTime": opt_str(rec.get("updateTime"), 64),
+    }
+
+
+def session_log_envelope(conn: Any, session_id: str) -> dict:
+    """[READ] One session's log, with completeness measured against the server.
+
+    The logs endpoint takes no paging parameters in any spec revision (1.3 adds
+    only ``statusFilter``), but its ``SessionLogResult`` carries
+    ``totalRecords``. Comparing the two is the only way to see a log the server
+    cut short: ``truncated`` is true when fewer records came back than it
+    counted, and ``null`` when it did not say how many there are.
+    """
     data = conn.get(f"/api/v1/sessions/{_seg(session_id)}/logs")
-    return [
-        {
-            "title": opt_str(rec.get("title", rec.get("name")), 200),
-            "description": opt_str(rec.get("description"), 400),
-            "status": opt_str(rec.get("status"), 32),
-            "startTime": opt_str(rec.get("startTime"), 64),
-            "updateTime": opt_str(rec.get("updateTime"), 64),
-        }
-        for rec in _log_records(data)
-        if isinstance(rec, dict)
-    ]
+    records = [_norm_log_record(r) for r in _log_records(data) if isinstance(r, dict)]
+    total = data.get("totalRecords") if isinstance(data, dict) else None
+    if isinstance(total, bool) or not isinstance(total, int):
+        total = None
+    return {
+        "records": records,
+        "returned": len(records),
+        "totalRecords": total,
+        "truncated": None if total is None else len(records) < total,
+    }
 
 
 _FAIL_LOG_STATUSES = {"failed", "warning", "error"}
@@ -175,34 +196,56 @@ def failing_log_lines(conn: Any, session_id: str) -> tuple[list[str], str | None
     classifier. A log that cannot be read returns its error instead of an empty
     list — "no failing records" and "could not look" must stay distinguishable.
     """
+    lines, error, _complete = _failing_lines(conn, session_id)
+    return lines, error
+
+
+def _failing_lines(conn: Any, session_id: str) -> tuple[list[str], str | None, bool | None]:
+    """``(lines, error, complete)`` — ``complete`` is the log envelope's verdict
+    (False when the server returned fewer records than it counted, None when
+    it gave no total or the log was unreadable)."""
     try:
-        records = get_session_log(conn, session_id)
+        env = session_log_envelope(conn, session_id)
     except Exception as exc:  # noqa: BLE001 — returned to the caller, not swallowed
-        return [], str(exc)[:200]
+        return [], str(exc)[:200], None
     lines = []
-    for rec in records:
+    for rec in env["records"]:
         if str(rec.get("status") or "").lower() not in _FAIL_LOG_STATUSES:
             continue
         parts = [p for p in (rec.get("title"), rec.get("description")) if p]
         if parts:
             lines.append(": ".join(parts))
-    return lines, None
+    truncated = env["truncated"]
+    return lines, None, None if truncated is None else not truncated
 
 
 def collect_failure_logs(conn: Any, session_rows: list[dict],
                          fail_results: set[str]) -> tuple[dict[str, list[str]], list[str]]:
     """Failing log lines for every failed session, plus the ids whose log was unreadable."""
+    detail = collect_failure_logs_detail(conn, session_rows, fail_results)
+    return detail["index"], detail["unreadable"]
+
+
+def collect_failure_logs_detail(conn: Any, session_rows: list[dict],
+                                fail_results: set[str]) -> dict:
+    """Like :func:`collect_failure_logs`, plus ``incomplete``: failed sessions
+    whose log the server returned only part of — a failing record may be
+    missing, so "not auto-classified" there means "partly looked", not "nothing
+    matched"."""
     index: dict[str, list[str]] = {}
     unreadable: list[str] = []
+    incomplete: list[str] = []
     for row in session_rows:
         sid = str(row.get("id") or "")
         if not sid or str(row.get("result") or "").lower() not in fail_results:
             continue
-        lines, error = failing_log_lines(conn, sid)
+        lines, error, complete = _failing_lines(conn, sid)
         index[sid] = lines
         if error is not None:
             unreadable.append(sid)
-    return index, unreadable
+        elif complete is False:
+            incomplete.append(sid)
+    return {"index": index, "unreadable": unreadable, "incomplete": incomplete}
 
 
 def stop_session(conn: Any, session_id: str) -> dict:

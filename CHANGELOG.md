@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **BREAKING (MCP shape)** `session_log` now returns
+  `{records, returned, totalRecords, truncated}` instead of a bare list. The
+  logs endpoint takes no paging parameters in any spec revision, but the server
+  reports `totalRecords`; the tool never compared the two, so a log the server
+  cut short looked complete. `truncated` is true when fewer records came back
+  than the server counted and `null` when it gave no total. The CLI prints the
+  same warning.
+- `job_failure_rca`: a failed session whose log the server cut short could be
+  reported "not auto-classified" with no hint that part of the log was missing.
+  The RCA now carries `logsIncomplete` alongside `logsUnreadable`.
+
 ## v0.18.0 — 2026-10-15
 
 ### Fixed

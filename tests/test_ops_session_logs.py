@@ -74,3 +74,54 @@ def test_rca_names_the_sessions_whose_logs_it_could_not_read():
         [{"id": "s1", "name": "Daily", "result": "Failed"}], {"s1": []},
         logs_unreadable=["s1"])
     assert out["logsUnreadable"] == ["s1"]
+
+
+# ── totalRecords: the server says how many records the log really has ────────
+
+
+@pytest.mark.unit
+def test_envelope_reports_a_log_the_server_cut_short():
+    cut = {"totalRecords": 250, "records": SPEC_LOG["records"]}
+    env = sessions.session_log_envelope(_fake(cut), "s1")
+    assert env["returned"] == 3 and env["totalRecords"] == 250
+    assert env["truncated"] is True
+
+
+@pytest.mark.unit
+def test_envelope_complete_log_is_not_truncated():
+    env = sessions.session_log_envelope(_fake(SPEC_LOG), "s1")
+    assert env["returned"] == 3 and env["truncated"] is False
+
+
+@pytest.mark.unit
+def test_envelope_without_total_is_unknown_not_complete():
+    env = sessions.session_log_envelope(_fake({"records": SPEC_LOG["records"]}), "s1")
+    assert env["totalRecords"] is None and env["truncated"] is None
+
+
+@pytest.mark.unit
+def test_mcp_session_log_returns_the_envelope(monkeypatch):
+    from veeam_aiops.mcp_server.tools import sessions as tools
+
+    monkeypatch.setattr(tools, "_get_connection", lambda target=None: _fake(
+        {"totalRecords": 9, "records": SPEC_LOG["records"]}))
+    out = tools.session_log(session_id="s1")
+    assert out["truncated"] is True and out["totalRecords"] == 9
+
+
+@pytest.mark.unit
+def test_failure_log_collection_names_logs_the_server_cut_short():
+    cut = {"totalRecords": 90, "records": SPEC_LOG["records"]}
+    rows = [{"id": "s1", "name": "Daily", "result": "Failed"}]
+    detail = sessions.collect_failure_logs_detail(_fake(cut), rows, {"failed"})
+    assert detail["incomplete"] == ["s1"] and detail["unreadable"] == []
+    full = sessions.collect_failure_logs_detail(_fake(SPEC_LOG), rows, {"failed"})
+    assert full["incomplete"] == []
+
+
+@pytest.mark.unit
+def test_rca_reports_incomplete_logs():
+    out = diagnostics.job_failure_findings(
+        [{"id": "s1", "name": "Daily", "result": "Failed"}], {"s1": []},
+        logs_incomplete=["s1"])
+    assert out["logsIncomplete"] == ["s1"]

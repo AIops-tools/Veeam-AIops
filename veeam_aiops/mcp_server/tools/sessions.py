@@ -41,17 +41,21 @@ def session_get(session_id: str, target: Optional[str] = None) -> dict:
 
 @mcp.tool()
 @governed_tool(risk_level="low")
-@tool_errors("list")
-def session_log(session_id: str, target: Optional[str] = None) -> list:
+@tool_errors("dict")
+def session_log(session_id: str, target: Optional[str] = None) -> dict:
     """[READ] Return the log records (events) of one session.
 
     Use to see why a session failed instead of re-running the job blind.
+    Returns ``{records, returned, totalRecords, truncated}``: ``truncated`` is
+    true when the server holds more records than it returned (the endpoint
+    cannot be paged), ``null`` when it did not report a total. Do not conclude
+    "no error in the log" from a truncated or null-truncated result.
 
     Args:
         session_id: Veeam session id (see session_list).
         target: Veeam target name from config.
     """
-    return ops.get_session_log(_get_connection(target), session_id)
+    return ops.session_log_envelope(_get_connection(target), session_id)
 
 
 @mcp.tool()

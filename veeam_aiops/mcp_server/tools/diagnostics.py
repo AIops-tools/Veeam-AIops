@@ -42,11 +42,13 @@ def job_failure_rca(
     conn = _get_connection(target)
     window = session_ops.list_sessions(conn, limit=limit, since_hours=since_hours)
     session_rows = window["sessions"]
-    error_index, unreadable = session_ops.collect_failure_logs(conn, session_rows, _FAIL_RESULTS)
+    logs = session_ops.collect_failure_logs_detail(conn, session_rows, _FAIL_RESULTS)
+    error_index, unreadable = logs["index"], logs["unreadable"]
     return diag.job_failure_findings(session_rows, error_index,
                                      sessions_truncated=window["truncated"],
                                      sessions_since=window["since"],
-                                     logs_unreadable=unreadable)
+                                     logs_unreadable=unreadable,
+                                     logs_incomplete=logs["incomplete"])
 
 
 @mcp.tool()

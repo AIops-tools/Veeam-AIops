@@ -354,9 +354,11 @@ def test_session_log_hits_logs_endpoint(monkeypatch, fake_veeam):
         }
     )
     _wire(monkeypatch, sessions_tools, fake)
-    rows = sessions_tools.session_log(session_id="s1")
+    out = sessions_tools.session_log(session_id="s1")
     assert fake.paths("GET") == ["/api/v1/sessions/s1/logs"]
+    rows = out["records"]
     assert rows[0]["title"] == "Queued for processing" and rows[0]["updateTime"] == "t1"
+    assert out["truncated"] is False  # totalRecords 1, one record returned
 
 
 @pytest.mark.unit
