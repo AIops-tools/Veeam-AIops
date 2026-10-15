@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.19.0 — 2026-10-15
 
 ### Fixed
 - **BREAKING (MCP shape)** `session_log` now returns

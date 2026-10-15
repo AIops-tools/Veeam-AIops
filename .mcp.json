@@ -5,7 +5,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "veeam-aiops==0.18.0",
+        "veeam-aiops==0.19.0",
         "veeam-aiops-mcp"
       ]
     }
