@@ -2,6 +2,8 @@
 
 # Veeam AIops
 
+> **Audit availability:** Real writes require a committed `pending` audit row and stop before contacting the platform if storage is unavailable. Reads and previews may continue with a warning; new audit rows store outcome summaries rather than full responses.
+
 > **Disclaimer**: Community-maintained open-source project. **Not affiliated with, endorsed by, or sponsored by Veeam Software.** "Veeam" is a trademark of its owner. MIT licensed.
 
 AI-powered Veeam Backup & Replication operations with a **built-in governance
@@ -10,8 +12,10 @@ undo-token recording, and descriptive risk tiers. Self-contained: no
 external dependencies beyond `httpx` and the MCP SDK. Coverage is not yet full
 coverage of every Veeam operation.
 
-> **Verification status**: the test suite is mock-based; this package has not yet been
-> validated against a live Veeam B&R server. See [docs/VERIFICATION.md](docs/VERIFICATION.md).
+> **Verification status**: the test suite is mock-based; selected CLI/REST reads
+> were validated against Veeam B&R 13.1.1.18. MCP lifecycle, writes, restore
+> safety, and later releases remain unverified on a live server. See
+> [docs/VERIFICATION.md](docs/VERIFICATION.md).
 
 ## What works
 
